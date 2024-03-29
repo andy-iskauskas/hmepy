@@ -1,16 +1,14 @@
-[tool.poetry]
+[project]
 name = "hmepy"
 version = "1.7.0"
-description = "History Matching and Emulation for Python"
-authors = ["Andrew Iskauskas, TJ McKinley"]
-license = "MIT"
-readme = "README.md"
+dependencies = [
+    "pandas",
+    "numpy",
+    "requests",
+    "importlib-metadata"
+]
 
-[tool.poetry.dependencies]
-python = "^3.9"
-
-[tool.poetry.dev-dependencies]
-
-[build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]

@@ -6,7 +6,7 @@ from hmepy import *
 mat1 = pd.DataFrame(data = {'a': [1.9, 2.1, 3.4], 'b': [0.1, -0.1, 0.4]})
 mat2 = pd.DataFrame(data = {'a': [1.8, 2.4, 3.2], 'b': [0.5, 0, -0.5]})
 
-class testExpSq(unittest.TestCase):
+class test_ExpSq(unittest.TestCase):
     def test_1d_equal(self):
         tmat = pd.DataFrame(data = {'a': [1]})
         calc = expSq(tmat, tmat, {'theta': 0.1})
@@ -63,7 +63,7 @@ class testExpSq(unittest.TestCase):
         with self.assertRaises(TypeError):
             expSq(mat1, hp = {'theta': 0.1})
 
-class testExpSqDiff(unittest.TestCase):
+class test_ExpSqDiff(unittest.TestCase):
     def test_self_zero(self):
         mat = pd.DataFrame(data = {'a': [1.9, 2.1, 3.4], 'b': [0.1, -0.1, 0.4]})
         calc = expSqDiff(mat, mat, {'theta': 1}, 'a')
@@ -90,7 +90,7 @@ class testExpSqDiff(unittest.TestCase):
         with self.assertRaises(TypeError):
             expSqDiff(mat1, mat2, {'theta': 0.1})
 
-class testMatern(unittest.TestCase):
+class test_Matern(unittest.TestCase):
     def test_matern_basic(self):
         calc = matern(pd.DataFrame(data = {'a': [1]}), pd.DataFrame(data = {'a': [1]}), {'nu': 1.5, 'theta': 0.1})
         self.assertEqual(calc[0,0], 1)
@@ -144,7 +144,7 @@ class testMatern(unittest.TestCase):
         with self.assertRaises(ArithmeticError):
             matern(mat1, mat1, {'theta': 0.1, 'nu': 1})
 
-class testMaternDiff(unittest.TestCase):
+class test_MaternDiff(unittest.TestCase):
     def test_self_corr_zero(self):
         df = pd.DataFrame(data = {'a': [1]})
         calc = maternDiff(df, df, {'theta': 0.1, 'nu': 1.5}, 'a')
@@ -189,7 +189,7 @@ class testMaternDiff(unittest.TestCase):
             maternDiff(mat1, mat1, {'theta': 0.1, 'nu': 0.5}, 'a')
             maternDiff(mat1, mat1, {'theta': 0.1, 'nu': 1.5}, 'a', 'b')
 
-class testOrn(unittest.TestCase):
+class test_Orn(unittest.TestCase):
     def test_self_corr(self):
         df = pd.DataFrame(data = {'a': [1]})
         calc = ornUhl(df, df, {'theta':0.2})
@@ -248,7 +248,7 @@ class testOrn(unittest.TestCase):
             ornUhl(df1, df2, {'theta': 0.2})
         ))
 
-class testGamma(unittest.TestCase):
+class test_Gamma(unittest.TestCase):
     def test_self_corr(self):
         df = pd.DataFrame(data = {'a': [1]})
         self.assertEqual(gammaExp(df, df, {'theta': 0.1, 'gamma': 1})[0,0], 1)
@@ -306,7 +306,7 @@ class testGamma(unittest.TestCase):
         with self.assertRaises(ArithmeticError):
             gammaExp(mat1, mat1, {'theta': 0.1, 'gamma': 2.01})
 
-class testRatQuad(unittest.TestCase):
+class test_RatQuad(unittest.TestCase):
     def test_self_corr(self):
         df = pd.DataFrame(data = {'a': [1]})
         self.assertEqual(ratQuad(df, df, {'theta': 0.1, 'alpha': 1.5})[0,0], 1)
@@ -359,7 +359,7 @@ class testRatQuad(unittest.TestCase):
         with self.assertRaises(ValueError):
             ratQuad(mat1, mat1, {'alpha': 0.4})
 
-class testRatQuadDiff(unittest.TestCase):
+class test_RatQuadDiff(unittest.TestCase):
     def test_self_corr_zero_1d(self):
         df = pd.DataFrame(data = {'a': [1]})
         self.assertEqual(ratQuadDiff(df, df, {'theta': 0.2, 'alpha': 1.1}, 'a')[0,0], 0)
