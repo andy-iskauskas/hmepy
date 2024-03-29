@@ -1,3 +1,6 @@
-# read version from installed package
-from importlib.metadata import version
-__version__ = version("hmepy")
+from .version import *
+from .correlations import *
+
+## Print license
+print(__license__)
+
