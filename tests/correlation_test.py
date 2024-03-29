@@ -1,4 +1,6 @@
 import unittest
+import unittest.mock
+import io
 import pandas as pd
 import numpy as np
 from hmepy import *
@@ -392,6 +394,100 @@ class test_RatQuadDiff(unittest.TestCase):
     def test_no_deriv_fails(self):
         with self.assertRaises(TypeError):
             ratQuadDiff(mat1, mat1)
+
+class test_Correlator(unittest.TestCase):
+    def test_init(self):
+        tCorr = Correlator()
+        self.assertEqual(tCorr.corrName, 'expSq')
+        self.assertEqual(tCorr.hyperp['theta'], 0.1)
+        self.assertEqual(tCorr.nugget, 0)
+    def test_custom(self):
+        tCorr = Correlator('matern', {'theta': 0.8, 'nu': 1.5}, nug = 0.15)
+        self.assertEqual(tCorr.corrName, 'matern')
+        self.assertEqual(tCorr.hyperp['theta'], 0.8)
+        self.assertEqual(tCorr.hyperp['nu'], 1.5)
+        self.assertEqual(tCorr.nugget, 0.15)
+    @unittest.mock.patch('sys.stdout', new_callable = io.StringIO)
+    def test_print(self, mock_stdout):
+        tCorr = Correlator('matern', {'theta': 0.8, 'nu': 1.5}, nug = 0.15)
+        print(tCorr)
+        self.assertIn("Correlation type", mock_stdout.getvalue())
+        self.assertIn("Hyperparameters", mock_stdout.getvalue())
+        self.assertIn("Nugget term", mock_stdout.getvalue())
+    def test_query(self):
+        self.assertEqual(Correlator().getHyperp()['theta'], 0.1)
+    def test_change_hp(self):
+        c1 = Correlator()
+        c2 = c1.setHyperp({'theta': 0.6})
+        c2alt = c1.setHyperp({'gamma': 0.6})
+        c3 = c1.setHyperp({}, nug = 0.64)
+        self.assertEqual(c2.hyperp['theta'], 0.6)
+        self.assertEqual(c2alt.hyperp['theta'], 0.1)
+        self.assertEqual(c3.nugget, 0.64)
+    def test_calc_corr(self):
+        tCorr = Correlator("matern", {'theta': 0.8, 'nu': 1.5}, nug = 0.15)
+        pt = pd.DataFrame(data = {'a': np.random.uniform(0, 1, 1), 'b': np.random.uniform(-1, 1, 1)})
+        self.assertEqual(tCorr.getCorr(pt), 1)
+    def test_missing_xp(self):
+        tCorr = Correlator("matern", {'theta': 0.8, 'nu': 1.5}, nug = 0.15)
+        pts = pd.DataFrame(data = {'a': np.random.uniform(0, 1, 10), 'b': np.random.uniform(0, 1, 10)})
+        self.assertIsNone(np.testing.assert_equal(tCorr.getCorr(pts), tCorr.getCorr(pts, pts)))
+    def test_symm(self):
+        tCorr = Correlator('ornUhl', {'theta': 0.2})
+        pts = pd.DataFrame(data = {'a': np.random.uniform(size = 10), 'b': np.random.uniform(size = 10)})
+        res1 = tCorr.getCorr(pts.iloc[1:5,:], pts.iloc[6:10,:])
+        res2 = tCorr.getCorr(pts.iloc[6:10,:], pts.iloc[1:5,:])
+        self.assertIsNone(np.testing.assert_equal(res1, res2.T))
+    def test_nugg(self):
+        df = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
+        tCorr = Correlator('ratQuad', {'theta': 0.4, 'alpha': 1.1}, nug = 0.15)
+        r1 = tCorr.getCorr(df)
+        r2 = tCorr.getCorr(df, useNugget = False)
+        self.assertFalse(np.testing.assert_equal(r1, r2))
+    def test_actives(self):
+        df = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(size = 2)})
+        tCorr = Correlator()
+        c1 = tCorr.getCorr(df)
+        c2 = tCorr.getCorr(df, actives = [True, False])
+        self.assertIsNone(np.testing.assert_array_less(c1-1e-10, c2))
+    def test_corr_deriv(self):
+        pts = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
+        tCorr = Correlator()
+        self.assertEqual(tCorr.getCorrDiff(pts, 'a')[0,0], 0)
+        pts2 = pd.DataFrame(data = {'a': np.random.uniform(size = 4), 'b': np.random.uniform(-1, 1, 4)})
+        self.assertEqual(np.shape(tCorr.getCorrDiff(pts, 'a', pts2, 'a')), (4, 2))
+    def test_dataframe_mess(self):
+        tCorr = Correlator('matern', {'theta': 0.1, 'nu': 2.5})
+        pts1 = pd.DataFrame(data = {'a': np.random.uniform(size = 3), 'b': np.random.uniform(-1, 1, 3)})
+        pts2 = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
+        self.assertIsNone(np.testing.assert_equal(tCorr.getCorrDiff(pts1, 'a'),
+                                                  tCorr.getCorrDiff(pts1, 'a', pts1)))
+        self.assertIsNone(np.testing.assert_equal(tCorr.getCorrDiff(pts1, 'a', pts2),
+                                                  -tCorr.getCorrDiff(pts2, 'a', pts1).T))
+    def test_derivative_non_active(self):
+        pts1 = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
+        tCorr = Correlator('ratQuad', {'theta': 0.2, 'alpha': 1.1})
+        self.assertIsNone(np.testing.assert_equal(tCorr.getCorrDiff(pts1, 'a', actives = [False, True]),
+                                                  np.zeros((2,2))))
+        self.assertIsNone(np.testing.assert_equal(tCorr.getCorrDiff(pts1, 'a', p2 = 'b', actives = [True, False]),
+                                                  np.zeros((2,2))))
+    def test_throw_error_no_diff(self):
+        tCorr = Correlator('ornUhl', {'theta': 0.1})
+        pt = pd.DataFrame(data = {'a': [1], 'b': [2]})
+        with self.assertRaises(NotImplementedError):
+            tCorr.getCorrDiff(pt, 'a')
+        tCorr2 = Correlator('matern', {'theta': 0.1, 'nu': 0.5})
+        with self.assertRaises(ArithmeticError):
+            tCorr2.getCorrDiff(pt, 'a')
+        tCorr3 = Correlator('matern', {'theta': 0.3, 'nu': 1.5})
+        with self.assertRaises(ArithmeticError):
+            tCorr3.getCorrDiff(pt, 'a', p2 = 'a')
+    def test_dim_sense(self):
+        tCorr = Correlator()
+        pts1 = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
+        pts2 = pd.DataFrame(data = {'a': np.random.uniform(size = 3), 'b': np.random.uniform(-1, 1, 3)})
+        self.assertEqual(np.shape(tCorr.getCorrDiff(pts1, 'a', pts2)), (3, 2))
+
 
 if __name__ == '__main__':
     unittest.main()
