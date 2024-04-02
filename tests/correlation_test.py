@@ -3,7 +3,7 @@ import unittest.mock
 import io
 import pandas as pd
 import numpy as np
-from hmepy import *
+from hmepy.correlations import *
 
 mat1 = pd.DataFrame(data = {'a': [1.9, 2.1, 3.4], 'b': [0.1, -0.1, 0.4]})
 mat2 = pd.DataFrame(data = {'a': [1.8, 2.4, 3.2], 'b': [0.5, 0, -0.5]})

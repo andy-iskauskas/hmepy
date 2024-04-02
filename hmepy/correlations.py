@@ -482,6 +482,6 @@ class Correlator:
         outString = prepend + "Correlation type: " + self.corrName + "\n"
         outString = outString + prepend + "Hyperparameters: "
         for key in self.hyperp.keys():
-            outString = outString + key + ": " + str(self.hyperp[key]) + ";"
-        outString = outString + "\n" + prepend + "Nugget term: " + str(self.nugget) + "\n"
+            outString = outString + key + ": " + str(self.hyperp[key]) + "; "
+        outString = outString[:-2] + "\n" + prepend + "Nugget term: " + str(self.nugget) + "\n"
         return f"{outString}"
