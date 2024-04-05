@@ -7,6 +7,10 @@ import numbers
 import pandas as pd
 import numpy as np
 import copy
+## Testing
+# from correlations import Correlator
+# from utils import *
+## Production
 from hmepy.correlations import Correlator
 from hmepy.utils import *
 
@@ -271,15 +275,14 @@ class Emulator:
             g = evalFuncs(self.bF, x).T
             betaPart = [np.matmul(g[i], self.bMu) for i in range(np.shape(g)[0])]
         else:
-            ## Something something predict
-            pass
+            betaPart = self.model.predict(x)
         bU = evalFuncs(self.betaUCov, x)
         uPart = x.apply(self.uMu, axis = 1)
         if hasattr(self, 'inData'):
             if cData is None:
                 cData = self.corr.getCorr(self.inData, x, self.activeVars)
             if isinstance(self.uSig, numbers.Number):
-                added = np.dot(
+                added = np.matmul(
                     np.matmul(bU.T, self.designMat.T) + self.uSig**2 * cData,
                     self.uExpMod)
                 uPart = uPart + added
@@ -442,7 +445,9 @@ class Emulator:
             result = betaPart + uPart + bU
         else:
             result = betaPart
-        return result
+        result = np.round(result, 10)
+        result[result < 0] = 1e-10
+        return np.abs(result)
     def implausibility(self, x, z, cutoff = None):
         """
         Emulator Implausibility
@@ -658,15 +663,15 @@ class Emulator:
         outString = outString + "Specifications:\n"
         outString = outString + "\tBasis Functions: "
         if not(self.model is None):
-            pass
-            # Do a thing
+            fNames = getFeatureNames(self.model)
+            outString = outString + ", ".join(fNames) + "\n"
         else:
             # Do another thing (maybe need to add function_to_names into utils)
             outString = outString + "Coming soon\n"
         outString = outString + "\tActive Variables: "
         outString = outString + ", ".join([i for (i, v) in zip(list(self.ranges.keys()), self.activeVars) if v]) + "\n"
         outString = outString + "\tRegression Surface Expectation: "
-        outString = outString + "; ".join(str(b) for b in self.bMu) + "\n"
+        outString = outString + "; ".join(str(round(b, 4)) for b in self.bMu) + "\n"
         outString = outString + "\tRegression Surface Variance (Eigenvalues): "
         outString = outString + "(" + "; ".join(str(ev) for ev in np.linalg.eigvals(self.bSig)) + ")\n"
         outString = outString + "Correlation Structure:\n"
@@ -674,7 +679,7 @@ class Emulator:
             outString = outString + "Bayes-adjusted emulator - prior specifications listed.\n"
         outString = outString + "\tPrior Variance: "
         if isinstance(self.uSig, numbers.Number):
-            outString = outString + str(self.uSig**2) + "\n"
+            outString = outString + str(round(self.uSig**2, 4)) + "\n"
         else:
             outString = outString + str(self.uSig([sum(self.ranges[key])/2 for key in self.ranges.keys()])) + "\n"
         outString = outString + "\tExpectation: " + str(self.uMu(np.zeros(len(self.ranges)))) + "\n"

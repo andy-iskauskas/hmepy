@@ -4,6 +4,7 @@ version = "1.7.0"
 dependencies = [
     "pandas",
     "numpy",
+    "sklearn",
     "requests",
     "importlib-metadata"
 ]
