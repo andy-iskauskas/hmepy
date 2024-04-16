@@ -8,11 +8,11 @@ import pandas as pd
 import numpy as np
 import copy
 ## Testing
-# from correlations import Correlator
-# from utils import *
+from correlations import Correlator
+from utils import *
 ## Production
-from hmepy.correlations import Correlator
-from hmepy.utils import *
+# from hmepy.correlations import Correlator
+# from hmepy.utils import *
 
 __all__ = ["Emulator"]
 
@@ -400,7 +400,7 @@ class Emulator:
         else:
             indexAlong = range(np.shape(x)[0])
             if not(gX is None):
-                betaPart = [np.matmul(gX.iloc[:,i], np.matmul(self.bSig, gXP.iloc[:,i])) for i in indexAlong]
+                betaPart = [np.matmul(gX[i,:], np.matmul(self.bSig, gXP[i,:])) for i in indexAlong]
             if np.array_equal(x, xp):
                 if isinstance(self.uSig, numbers.Number):
                     uPart = [self.uSig**2 for i in indexAlong]
@@ -436,9 +436,9 @@ class Emulator:
                         bUXP = bUXP - np.matmul(self.betaUCovMod,
                                                 np.matmul(self.designMat, bUXP) + cXP.T)
             if np.count_nonzero(bUX) != 0:
-                gValX = [evalFuncs(self.bF, x.iloc[[i],:]) for i in indexAlong]
-                gValXP = [evalFuncs(self.bF, x.iloc[[i],:]) for i in indexAlong]
-                bU = [np.dot(gValX.iloc[i,:], bUXP.iloc[:,i]) + np.dot(gValXP.iloc[i,:], bUX.iloc[:,i]) for i in indexAlong]
+                gValX = np.array([evalFuncs(self.bF, x.iloc[[i],:]) for i in indexAlong])[:,:,0]
+                gValXP = np.array([evalFuncs(self.bF, xp.iloc[[i],:]) for i in indexAlong])[:,:,0]
+                bU = [np.dot(gValX[i,:], bUXP[:,i]) + np.dot(gValXP[i,:], bUX[:,i]) for i in indexAlong]
             else:
                 bU = np.zeros(np.shape(x)[0])
         if includeC:
@@ -673,7 +673,7 @@ class Emulator:
         outString = outString + "\tRegression Surface Expectation: "
         outString = outString + "; ".join(str(round(b, 4)) for b in self.bMu) + "\n"
         outString = outString + "\tRegression Surface Variance (Eigenvalues): "
-        outString = outString + "(" + "; ".join(str(ev) for ev in np.linalg.eigvals(self.bSig)) + ")\n"
+        outString = outString + "(" + "; ".join(str(round(ev, 4)) for ev in np.linalg.eigvals(self.bSig)) + ")\n"
         outString = outString + "Correlation Structure:\n"
         if hasattr(self, 'dCorrs'):
             outString = outString + "Bayes-adjusted emulator - prior specifications listed.\n"

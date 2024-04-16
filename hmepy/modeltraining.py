@@ -4,9 +4,15 @@ from sklearn.linear_model import LinearRegression
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import explained_variance_score
 from sklearn.feature_selection import SequentialFeatureSelector
-from utils import *
-from correlations import Correlator
-from emulator import Emulator
+from scipy.optimize import minimize, Bounds
+## Testing
+# from correlations import Correlator
+# from emulator import Emulator
+# from utils import *
+## Production
+from hmepy.correlations import Correlator
+from hmepy.utils import *
+from hmepy.emulator import Emulator
 import numpy as np
 import math
 import re
@@ -16,6 +22,14 @@ def designMatrix(data, model, paramNames):
     mNames = getFeatureNames(model)
     mFuncs = [nameToFunction(mf, paramNames) for mf in mNames]
     return evalFuncs(mFuncs, data).T
+
+def vcov(data, model, paramNames, outputName):
+    X = designMatrix(data, model, paramNames)
+    Y = data[outputName]
+    Xinv = np.linalg.inv(np.matmul(X.T, X))
+    resid = Y - np.matmul(np.matmul(X, Xinv), np.matmul(X.T, Y))
+    dof = np.shape(X)[0] - np.shape(X)[1]
+    return Xinv * np.sum(resid**2/dof)
 
 def getCoefModel(data, ranges, outputName, add = False,
                   order = 2, verbose = False):
@@ -50,7 +64,7 @@ def getCoefModel(data, ranges, outputName, add = False,
 def hyperparameterEstimate(inputs, outputs, model, hpRange,
                            corrName = "expSq", beta = None, delta = None,
                            nSteps = 30, verbose = False, logLik = True,
-                           performOpt = False):
+                           performOpt = True):
     if verbose:
         print(outputs.name)
     hpStartDict = {}
@@ -68,6 +82,10 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
         return thisCorr.getCorr(points, actives = isActive)
     def funcToOpt(params, logLik = logLik, returnStats = False):
         hp = dict(zip(hpRange.keys(), params[0:(len(params))]))
+        if corrName == "matern":
+            if (hp['nu'] > 0.5 and hp['nu'] <= 1): hp['nu'] = 0.5
+            if (hp['nu'] > 1 and hp['nu'] <= 2): hp['nu'] = 1.5
+            if (hp['nu'] > 2): hp['nu'] = 2.5
         try:
             delta = params[-1]
         except:
@@ -104,13 +122,13 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
         bestParams = bestPoint.append(delta)
     else:
         if corrName == "matern":
-            gridSearch = np.array([(x,y) for x in np.arange(hpRange['theta'][0], hpRange['theta'][1], np.diff(hpRange['theta']/(nSteps*4))) for y in [0.5, 1.5, 2.5, 3.5]])
+            gridSearch = np.array([(x,y) for x in np.arange(hpRange['theta'][0], hpRange['theta'][1], np.diff(hpRange['theta'])/(nSteps*4)) for y in [0.5, 1.5, 2.5, 3.5]])
         else:
             if len(hpRange) == 1:
                 gridSearch = np.array(np.arange(list(hpRange.values())[0][0], list(hpRange.values())[0][1], np.diff(list(hpRange.values())[0])/(nSteps*4)))
             if len(hpRange) == 2:
-                firstRange = np.arange(list(hpRange.values())[0][0], list(hpRange.values())[0][1], np.diff(hpRange.values())[0]/nSteps)
-                secondRange = np.arange(list(hpRange.values())[1][0], list(hpRange.values())[1][1], np.diff(hpRange.values())[1]/nSteps)
+                firstRange = np.arange(list(hpRange.values())[0][0], list(hpRange.values())[0][1], np.diff(list(hpRange.values())[0])/nSteps)
+                secondRange = np.arange(list(hpRange.values())[1][0], list(hpRange.values())[1][1], np.diff(list(hpRange.values())[1])/nSteps)
                 gridSearch = np.array([(x,y) for x in firstRange for y in secondRange])
         if delta is None:
             dval = 0.01
@@ -119,7 +137,7 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
         if len(np.shape(gridSearch)) == 1:
             gridLiks = [funcToOpt([x, delta]) for x in gridSearch]
         else:
-            gridLiks = np.apply_along_axis(lambda x: funcToOpt(x.append(delta)), 1, gridSearch)
+            gridLiks = np.apply_along_axis(lambda x: funcToOpt(np.append(x,delta)), 1, gridSearch)
         bestLik = np.argmax(gridLiks)
         if len(np.shape(gridSearch)) == 1:
             bestPoint = {list(hpRange.keys())[0]: gridSearch[bestLik]}
@@ -135,8 +153,11 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
             bestDelta = delta
         if performOpt:
             initialParams = np.append(list(bestPoint.values()), bestDelta)
-            ### Do some optimisation here.
-            pass
+            lower = np.append([hp[0] for hp in list(hpRange.values())], 0)
+            upper = np.append([hp[1] for hp in list(hpRange.values())], 0.5)
+            bds = Bounds(lower, upper)
+            optimed = minimize(lambda x: -1*funcToOpt(x), initialParams, bounds = bds)
+            bestParams = optimed.x
         else:
             bestParams = np.append(list(bestPoint.values()), bestDelta)
         otherPars = funcToOpt(bestParams, returnStats = True)
@@ -203,8 +224,7 @@ def emulatorFromData(inputData, outputNames, ranges = None,
             if not(betaVar):
                 modelBetaSigmas = [np.zeros((len(mbm), len(mbm))) for mbm in modelBetaMus]
             else:
-                ## Figure out how to do this.
-                pass
+                modelBetaSigmas = [vcov(inputScaled, models[ind], list(ranges.keys()), outputNames[ind]) for ind in range(len(models))]
         else:
             ## If priors are provided, they're allocated here.
             pass
@@ -227,7 +247,7 @@ def emulatorFromData(inputData, outputNames, ranges = None,
             if corrName == 'matern':
                 thran = [{'theta': [min(2/(order+1), 1/3), 2/order], 'nu': [0.5, 3.5]} for i in range(len(models))]
             if corrName == 'ratQuad':
-                thran = [{'theta': [min(2/(order+1), 1/3), 2/order], 'alpha': [-1,1]}]
+                thran = [{'theta': [min(2/(order+1), 1/3), 2/order], 'alpha': [0.01,5]} for i in range(len(models))]
         specs = [hyperparameterEstimate(inputScaled.loc[:,ranges.keys()],
                                         inputScaled.loc[:,outputNames[i]],
                                         models[i],
@@ -249,22 +269,13 @@ def emulatorFromData(inputData, outputNames, ranges = None,
                 emlist[i] = emlist[i].adjust(inputData, emlist[i].outputName)
         return emlist
 
-df = pd.read_csv("../../Desktop/SIRData.csv")
-ranges = {'aSI': [0.1, 0.8], 'aIR': [0, 0.5], 'aSR': [0, 0.05]}
-tefd = emulatorFromData(df, ['nS', 'nI', 'nR'], ranges = ranges, checkRanges = True, verbose = True)
-print(tefd['nI'])
-preds = tefd['nI'].getExp(df)
-print(preds - df['nI'])
-print(tefd['nI'].getCov(df))
-
-# hpEst = hyperparameterEstimate(tmodIn, tmodOut, tmod, hyperRange)
-# print(hpEst['sigma'])
-
-# SSE = sum((df['nI']-tmod.predict(evalFuncs(scaleInput, df.loc[:,ranges.keys()], ranges)))**2)
-# RSE = math.sqrt(SSE/(np.shape(df)[0] - len(bTest)))
-# print(RSE)
-
-
-# #print(tefd['nI'].model.named_steps['linear'].fit_transform(df.loc[:,ranges.keys()]))
-# print(sum([True, False, True, True, False]))
-# hyperparameterEstimate(df.loc[:,ranges.keys()], df['nI'], tefd['nI'].model, {'theta': [1/3, 2]})
+# df = pd.read_csv("../../Desktop/SIRData.csv")
+# ranges = {'aSI': [0.1, 0.8], 'aIR': [0, 0.5], 'aSR': [0, 0.05]}
+# # tCoeff = getCoefModel(df, ranges, 'nS')
+# # print(vcov(df, tCoeff, list(ranges.keys()), 'nS'))
+# tefd = emulatorFromData(df, ['nS', 'nI', 'nR'], ranges = ranges, checkRanges = True, verbose = True,
+#                         betaVar = True)
+# print(tefd['nI'])
+# preds = tefd['nI'].getExp(df)
+# print(preds - df['nI'])
+# print(tefd['nI'].getCov(df, full = True))
