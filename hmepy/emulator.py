@@ -8,11 +8,11 @@ import pandas as pd
 import numpy as np
 import copy
 ## Testing
-from correlations import Correlator
-from utils import *
+# from correlations import Correlator
+# from utils import *
 ## Production
-# from hmepy.correlations import Correlator
-# from hmepy.utils import *
+from hmepy.correlations import Correlator
+from hmepy.utils import *
 
 __all__ = ["Emulator"]
 
@@ -221,7 +221,7 @@ class Emulator:
                 extdisc = 0
             self.disc = {'internal': intdisc, 'external': extdisc}
         else:
-            self.disc = None
+            self.disc = {'internal': 0, 'external': 0}
         if not(data is None):
             self.inData = evalFuncs(scaleInput, data.loc[:,ranges.keys()], self.ranges)
             self.outData = data.loc[:,self.outputName]
@@ -482,7 +482,7 @@ class Emulator:
         tempScaleX = evalFuncs(scaleInput, x.loc[:,self.ranges.keys()], self.ranges)
         corrX = self.corr.getCorr(self.inData, tempScaleX, self.activeVars)
         if not(self.disc is None):
-            disc_quad = self.disc.internal**2 + self.disc.external**2
+            disc_quad = self.disc['internal']**2 + self.disc['external']**2
         else:
             disc_quad = 0
         if isinstance(z, dict) and 'val' in z.keys():

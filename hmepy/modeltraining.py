@@ -18,6 +18,8 @@ import math
 import re
 import warnings
 
+__all__ = ['emulatorFromData']
+
 def designMatrix(data, model, paramNames):
     mNames = getFeatureNames(model)
     mFuncs = [nameToFunction(mf, paramNames) for mf in mNames]
@@ -270,12 +272,10 @@ def emulatorFromData(inputData, outputNames, ranges = None,
         return emlist
 
 # df = pd.read_csv("../../Desktop/SIRData.csv")
+# dfTest = pd.read_csv("../../Desktop/SIRValidation.csv")
 # ranges = {'aSI': [0.1, 0.8], 'aIR': [0, 0.5], 'aSR': [0, 0.05]}
-# # tCoeff = getCoefModel(df, ranges, 'nS')
-# # print(vcov(df, tCoeff, list(ranges.keys()), 'nS'))
-# tefd = emulatorFromData(df, ['nS', 'nI', 'nR'], ranges = ranges, checkRanges = True, verbose = True,
-#                         betaVar = True)
+# tefd = emulatorFromData(df, ['nS', 'nI', 'nR'], ranges = ranges, checkRanges = True, verbose = True)
 # print(tefd['nI'])
-# preds = tefd['nI'].getExp(df)
-# print(preds - df['nI'])
-# print(tefd['nI'].getCov(df, full = True))
+# preds = tefd['nI'].getExp(dfTest)
+# print(preds - dfTest['nI'])
+# print(tefd['nI'].getCov(dfTest, full = True))
