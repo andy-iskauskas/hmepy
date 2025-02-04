@@ -68,7 +68,10 @@ def pcaTransform(x, sPoints, forward = True):
     traf = np.apply_along_axis(lambda y: y*spSD+spMean, 1, preTraf)
     return pd.DataFrame(traf, columns = xnames)
 
-'''
+def generateNewDesign(ems, nPoints, z, method = "default", cutoff = 3,
+                      plausibleSet = None, verbose = False, opts = None,
+                      **kwargs):
+    '''
     Generate Proposal Points
 
     Given a set of trained emulators, this function finds the next set of points that
@@ -197,10 +200,8 @@ def pcaTransform(x, sPoints, forward = True):
     -------
     A DataFrame containing the set of new points upon which to run the model.
 
-'''
-def generateNewDesign(ems, nPoints, z, method = "default", cutoff = 3,
-                      plausibleSet = None, verbose = False, opts = None,
-                      **kwargs):
+    '''
+    
     if opts is None:
         opts = kwargs
     else:

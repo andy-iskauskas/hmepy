@@ -6,7 +6,10 @@ from hmepy.modeltraining import *
 __all__ = ['getDiagnostic', 'analyzeDiagnostic', 'validationDiagnostics',
            'classificationDiag', 'comparisonDiag', 'standardErrors']
 
-'''
+def getDiagnostic(emulator, targets = None, validation = None,
+                  whichDiag = 'cd', stDev = 3, cleaned = None,
+                  warn = True, kfold = None):
+    '''
     Diagnostic Tests for Emulators
 
     Given an emulator, return a diagnostic measure.
@@ -61,10 +64,8 @@ __all__ = ['getDiagnostic', 'analyzeDiagnostic', 'validationDiagnostics',
     Returns
     -------
     A DataFrame consisting of the input points, output values, and diagnostics.
-'''
-def getDiagnostic(emulator, targets = None, validation = None,
-                  whichDiag = 'cd', stDev = 3, cleaned = None,
-                  warn = True, kfold = None):
+    '''
+
     if targets is None and whichDiag == 'ce':
         raise ValueError("Targets must be provided for classification error diagnostics.")
     if validation is None:
@@ -98,7 +99,9 @@ def getDiagnostic(emulator, targets = None, validation = None,
         outData = pd.DataFrame(outData, columns = np.append(list(emulator.ranges.keys()), [emulator.outputName, 'em', 'sim']))
     return outData
 
-'''
+def analyzeDiagnostic(inData, outputName, targets = None,
+                      plt = False, cutoff = 3):
+    '''
     Diagnostic Analysis for Emulators
 
     Produces summary statistics for diagnostics
@@ -139,9 +142,8 @@ def getDiagnostic(emulator, targets = None, validation = None,
     Returns
     -------
     A DataFrame containing points that fail one or more diagnostic tests.
-'''
-def analyzeDiagnostic(inData, outputName, targets = None,
-                      plt = False, cutoff = 3):
+    '''
+
     outputPoints = inData[outputName]
     inColNames = list(inData.columns)
     isInput = [not elem in [outputName, 'error', 'exp', 'unc', 'em', 'sim'] for elem in list(inData.columns)]
@@ -192,7 +194,9 @@ def analyzeDiagnostic(inData, outputName, targets = None,
             pass
     return inputPoints.loc[emInvalid,:]
 
-'''
+def validationDiagnostics(ems, targets = None, validation = None,
+                          whichDiag = ['cd', 'ce', 'se'], analyze = True):
+    '''
     Emulator Diagnostics
 
     Performs the standard set of validation diagnostics on emulators.
@@ -227,9 +231,8 @@ def analyzeDiagnostic(inData, outputName, targets = None,
     -------
     A DataFrame containing either the diagnostic results, or the collection of failed points.
 
-'''
-def validationDiagnostics(ems, targets = None, validation = None,
-                          whichDiag = ['cd', 'ce', 'se'], analyze = True):
+    '''
+
     if whichDiag == 'all' or (isinstance(whichDiag, (list, pd.core.series.Series, np.ndarray)) and 'all' in whichDiag):
         whichDiag = ['cd', 'ce', 'se']
     isDiag = [w in ['cd', 'ce', 'se'] for w in whichDiag]
@@ -246,7 +249,8 @@ def validationDiagnostics(ems, targets = None, validation = None,
     invPoints = np.unique(np.vstack([analyzeDiagnostic(getDiagnostic(ems[i], targets, validation, ad), ems[i].outputName, targets) for i in range(len(ems)) for ad in actualDiag]), axis = 0)
     return pd.DataFrame(invPoints, columns = list(ems[0].ranges.keys()))
 
-'''
+def classificationDiag(em, targets, validation, cutoff = 3, plt = False):
+    '''
     Classification Diagnostics
 
     Shorthand for diagnostic test 'ce'.
@@ -267,11 +271,12 @@ def validationDiagnostics(ems, targets = None, validation = None,
     Returns
     -------
     A DataFrame of points that failed the diagnostics.
-'''
-def classificationDiag(em, targets, validation, cutoff = 3, plt = False):
+    '''
+
     return analyzeDiagnostic(getDiagnostic(em, targets, validation, 'ce'), em.outputName, targets, plt, cutoff = cutoff)
 
-'''
+def comparisonDiag(em, targets, validation, sd = 3, plt = False):
+    '''
     Comparison Diagnostics
 
     Shorthand for diagnostic test 'cd'.
@@ -292,11 +297,13 @@ def classificationDiag(em, targets, validation, cutoff = 3, plt = False):
     Returns
     -------
     A DataFrame of points that failed the diagnostic.
-'''
-def comparisonDiag(em, targets, validation, sd = 3, plt = False):
+    '''
+    
     return analyzeDiagnostic(getDiagnostic(em, targets, validation, 'cd', sd), em.outputName, targets, plt)
 
-'''
+
+def standardErrors(em, targets, validation, plt = False):
+    '''
     Standard Errors
 
     Shorthand for the diagnostic test 'se'.
@@ -315,6 +322,6 @@ def comparisonDiag(em, targets, validation, sd = 3, plt = False):
     Returns
     -------
     A DataFrame of points failing the diagnostic test.
-'''
-def standardErrors(em, targets, validation, plt = False):
+    '''
+
     return analyzeDiagnostic(getDiagnostic(em, targets, validation, 'se'), em.outputName, targets, plt)

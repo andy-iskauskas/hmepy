@@ -10,6 +10,7 @@ __all__ = ['nthImplausible']
 '''
     Code to sequentially check emulator implausibilities.
 '''
+
 def sequentialImp(ems, x, z, n = 1, cutoff = 3):
     outres = np.full(x.shape[0], True)
     for i in range(x.shape[0]):
@@ -27,7 +28,9 @@ def sequentialImp(ems, x, z, n = 1, cutoff = 3):
             continue
     return outres
 
-"""
+def nthImplausible(ems, x, z, n = None, maxImp = math.inf,
+                   cutoff = None, sequential = False, getRaw = False):
+    """
         N-th Maximum Implausibility
 
         Computes the nth-maximum implausibility of points given a collection of emulators.
@@ -70,9 +73,8 @@ def sequentialImp(ems, x, z, n = 1, cutoff = 3):
         -------
         Either the nth-maximum implausibilities, or booleans (if cutoff is given).
         
-        """
-def nthImplausible(ems, x, z, n = None, maxImp = math.inf,
-                   cutoff = None, sequential = False, getRaw = False):
+    """
+    
     if isinstance(ems, Emulator):
         if not ems.outputName in list(z.keys()):
             raise KeyError("Target not found corresponding to named emulator.")

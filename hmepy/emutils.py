@@ -6,7 +6,9 @@ from hmepy.implausibility import nthImplausible
 
 __all__ = ['collectEmulators', 'getRanges']
 
-'''
+def collectEmulators(ems, targets = None, cutoff = 3,
+                     ordering = ['p', 'i', 'v'], sampleSize = 200):
+    '''
     Emulator Collation
 
     Collects and orders emulators for use in other functions.
@@ -47,9 +49,8 @@ __all__ = ['collectEmulators', 'getRanges']
     Returns:
     --------
     A flattened list of emulators, ordered with respect to the chosen metrics.
-'''
-def collectEmulators(ems, targets = None, cutoff = 3,
-                     ordering = ['p', 'i', 'v'], sampleSize = 200):
+    '''
+    
     if isinstance(ems, Emulator):
         return {ems.outputName: ems}
     if all(isinstance(em, Emulator) for em in ems):
@@ -80,7 +81,8 @@ def collectEmulators(ems, targets = None, cutoff = 3,
     return collectEmulators([em for emlist in ems for em in emlist], targets = targets,
                             cutoff = cutoff, ordering = ordering, sampleSize = sampleSize)
 
-'''
+def getRanges(ems, minimal = True):
+    '''
     Get Parameter Ranges
 
     Determine mimimal or maximal parameter ranges for a collection of emulators.
@@ -103,8 +105,8 @@ def collectEmulators(ems, targets = None, cutoff = 3,
     Returns:
     --------
     A named list of ranges, each consisting of an upper and lower bound.
-'''
-def getRanges(ems, minimal = True):
+    '''
+
     ems = collectEmulators(ems)
     rangeLengths = [len(list(em.ranges.values())) for em in ems]
     if not len(np.unique(rangeLengths)) == 1:

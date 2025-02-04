@@ -32,7 +32,9 @@ def vcov(data, model, paramNames, outputName):
     dof = np.shape(X)[0] - np.shape(X)[1]
     return Xinv * np.sum(resid**2/dof)
 
-'''
+def getCoefModel(data, ranges, outputName, add = False,
+                  order = 2, verbose = False):
+    '''
     Model generation
 
     Creates a best fit of coefficients for a given data set.
@@ -64,9 +66,8 @@ def vcov(data, model, paramNames, outputName):
     Returns
     -------
     A LinearRegression object.
-'''
-def getCoefModel(data, ranges, outputName, add = False,
-                  order = 2, verbose = False):
+    '''
+
     if verbose: print(outputName)
     Xdat = data.loc[:,ranges.keys()]
     Ydat = data.loc[:,outputName]
@@ -95,7 +96,11 @@ def getCoefModel(data, ranges, outputName, add = False,
         return None
     return model
 
-'''
+def hyperparameterEstimate(inputs, outputs, model, hpRange,
+                           corrName = "expSq", beta = None, delta = None,
+                           nSteps = 30, verbose = False, logLik = True,
+                           performOpt = True):
+    '''
     Hyperparameter Estimation
 
     Performs hyperparameter fitting for a linear model.
@@ -144,11 +149,8 @@ def getCoefModel(data, ranges, outputName, add = False,
     Returns
     -------
     A named dict consisting of hyperparameters, nugget term, coefficients, and sigma.
-'''
-def hyperparameterEstimate(inputs, outputs, model, hpRange,
-                           corrName = "expSq", beta = None, delta = None,
-                           nSteps = 30, verbose = False, logLik = True,
-                           performOpt = True):
+    '''
+    
     if verbose:
         print(outputs.name)
     hpStartDict = {}
@@ -252,8 +254,15 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
                      'beta': otherPars['beta']}
     return allPoints
 
-'''
-    Emulation construction
+def emulatorFromData(inputData, outputNames, ranges = None,
+                     inputNames = None, emulatorType = None,
+                     specifiedPriors = None, order = 2, betaVar = False,
+                     corrName = "expSq", adjusted = True, discrepancies = None,
+                     verbose = False, naRm = False, checkRanges = True,
+                     targets = None, hasHierarchy = False, covOpts = None,
+                     **kwargs):
+    '''
+    Emulator construction
 
     Given data, create an Emulator object for each output.
 
@@ -332,14 +341,8 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
     Returns
     -------
     A list of Emulator objects, one for each of the outputs desired.
-'''
-def emulatorFromData(inputData, outputNames, ranges = None,
-                     inputNames = None, emulatorType = None,
-                     specifiedPriors = None, order = 2, betaVar = False,
-                     corrName = "expSq", adjusted = True, discrepancies = None,
-                     verbose = False, naRm = False, checkRanges = True,
-                     targets = None, hasHierarchy = False, covOpts = None,
-                     **kwargs):
+    '''
+
     if not(all([outname in inputData.columns for outname in outputNames])):
         raise ValueError("outputNames do not match data.")
     if not(targets is None) and len(np.intersect1d(list(targets.keys()), outputNames)) == len(outputNames):
