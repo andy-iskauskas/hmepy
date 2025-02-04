@@ -1,14 +1,67 @@
 import numpy as np
 import pandas as pd
 import warnings
-## Testing
-# from modeltraining import *
-## Production
 from hmepy.modeltraining import *
 
 __all__ = ['getDiagnostic', 'analyzeDiagnostic', 'validationDiagnostics',
            'classificationDiag', 'comparisonDiag', 'standardErrors']
 
+'''
+    Diagnostic Tests for Emulators
+
+    Given an emulator, return a diagnostic measure.
+
+    An emulator's suitability can be checked in a number of ways. This function combines all
+    current diagnostics available in the package, returning a context-dependent DataFrame
+    containing the results.
+
+    Comparison Diagnostics (cd): Given a set of points, the emulator expectation and variance
+    are calculated. This gives a predictive range for the input point according to the
+    emulator. We compare this against the actual value given by the simulator: points whose
+    emulator prediction is further away from the simulator prediction are to be investigated.
+    The 'threshold distance' at which we deem a point too far away is determined by the
+    value of stDev, so that a point is worthy of investigation if it lies more than
+    stDev*uncertainty away from the simulator prediction.
+
+    Classification Error (ce): Given a set of targets, the emulator can determine implausibility
+    of a point with respect to the relevant target, accepting or rejecting as appropriate for a
+    given cutoff. We may define a 'simulator' implausibility in a similar fashion to
+    that of the emulator, and compare the two implausibility measures. Any point where the
+    simulator would not rule out a point but the emulator would should be investigated.
+
+    Standardised Error (se): The known value at a point, combined with the emulator expectation
+    and uncertainty, can be used to create a standardised error for the point. This error
+    should not be too large, in general, and we would expect an unbiased spread of errors
+    around 0. The diagnostic is useful when looking at a collection of validation measures, as
+    it can indicate emulators whose other characteristics are worthy of consideration.
+
+    The choice of which diagnostics to use can be controlled by the whichDiag argument;
+    the expected form for whichDiag is a list of strings corresponding to the bracketed strings
+    above. If performing classification diagnostics, a set of targets must be provided.
+
+    Parameters
+    ----------
+    emulator: Emulator
+        The emulator to test.
+    targets: [{'val': float, 'sigma': float}] | [[float, float]] | None
+        The observations, if desired.
+    validation: DataFrame
+        The points to validate against.
+    whichDiag: [str]
+        Which diagnostic measures to apply ('ce', 'cd', 'se').
+    stDev: float
+        For 'cd', the allowed distance between prediction and reality.
+    cleaned: bool | None
+        Internal argument for stochastic emulators.
+    warn: bool
+        Whether a warning is given if 'ce' is chosen without supplied targets.
+    kfold: DataFrame | None
+        Primarily internal: pre-computed k-fold diagnostics results.
+
+    Returns
+    -------
+    A DataFrame consisting of the input points, output values, and diagnostics.
+'''
 def getDiagnostic(emulator, targets = None, validation = None,
                   whichDiag = 'cd', stDev = 3, cleaned = None,
                   warn = True, kfold = None):
@@ -45,6 +98,48 @@ def getDiagnostic(emulator, targets = None, validation = None,
         outData = pd.DataFrame(outData, columns = np.append(list(emulator.ranges.keys()), [emulator.outputName, 'em', 'sim']))
     return outData
 
+'''
+    Diagnostic Analysis for Emulators
+
+    Produces summary statistics for diagnostics
+
+    Given diagnostic information (almost certainly provided from getDiagnostics), we may
+    plots the results and highlight the points worthy of concern or further analysis. The output
+    depends on the diagnostics desired, which in turn is inferred from the data provided in inData:
+
+    Standardised Error: outliers based on the 'error' column, determined by distance from
+    0 error.
+
+    Comparison Diagnostics: points where the emulator and simulator predictions do not overlap;
+    that is, those points where the emulator prediction (exp) plus/minus its uncertainty (unc) does not contain
+    the simulator output. Where targets are provided, these points are further subsetted: if a simulator
+    value is sufficiently far from the observation then the emulator prediction accuracy is not afforded
+    any diagnostic weight.
+
+    Classification Error: Points that would be ruled out by the emulator (em) but not by the simulator (sim) are
+    returned.
+
+    The inData argument is a DataFrame containing the output values from the simulator, the parameter
+    values, and the relevant quantities for the diagnostic tests mentioned above. Where multiple measures
+    for multiple tests are included, the points returned are a union of the respective diagnostic checks.
+
+    Parameters
+    ----------
+    inData: DataFrame
+        The diagnostic data.
+    outputName: str
+        The name of the output being emulated.
+    targets: [{'val': float, 'sigma': float}] | [[float, float]] | None
+        The targets to match to, if relevant.
+    plt: bool
+        Whether diagnostics should be plotted (currently not implemented).
+    cutoff: float
+        The cutoff for implausibility measures.
+    
+    Returns
+    -------
+    A DataFrame containing points that fail one or more diagnostic tests.
+'''
 def analyzeDiagnostic(inData, outputName, targets = None,
                       plt = False, cutoff = 3):
     outputPoints = inData[outputName]
@@ -64,7 +159,7 @@ def analyzeDiagnostic(inData, outputName, targets = None,
                 pointInvalid = (outputPoints < np.array(len(outputPoints)).fill(thisTarget['val'] - 6*thisTarget['sigma'])) | (outputPoints > np.array(len(outputPoints)).fill(thisTarget['val'] + 6*thisTarget['sigma']))
             if plt:
                 pass
-            emInvalid = [not p for p in pointInvalid] & emInvalid
+            emInvalid = pd.Series([not p for p in pointInvalid]) & emInvalid
     if 'exp' in inColNames:
         emExtent = np.append(inData['exp']+inData['unc'], inData['exp']-inData['unc'])
         emRanges = np.max(emExtent)-np.min(emExtent)
@@ -77,7 +172,7 @@ def analyzeDiagnostic(inData, outputName, targets = None,
             else:
                 pointInvalid = (outputPoints < np.array(len(outputPoints)).fill(thisTarget['val'] - 6*thisTarget['sigma'])) | (outputPoints > np.array(len(outputPoints)).fill(thisTarget['val'] + 6*thisTarget['sigma']))
                 panLims = [thisTarget['val'] - 4.5*thisTarget['sigma'], thisTarget['val'] + 4.5*thisTarget['sigma']]
-            emInvalid = [not p for p in pointInvalid] & emInvalid
+            emInvalid = pd.Series([not p for p in pointInvalid]) & emInvalid
         else:
             panLims = None
         if plt:
@@ -97,6 +192,42 @@ def analyzeDiagnostic(inData, outputName, targets = None,
             pass
     return inputPoints.loc[emInvalid,:]
 
+'''
+    Emulator Diagnostics
+
+    Performs the standard set of validation diagnostics on emulators.
+
+    All the diagnostics here should be performed with a validation (or 'holdout')
+    set of data. The presence of a collection of observational targets is optional
+    for some of the standard checks but mandatory for others: appropriate warnings
+    will be provided in the event that some desired checks cannot be applied.
+
+    The options for diagnostics (with corresponding string identifiers) are:
+        
+        - Standardised Errors ('se')
+        - Comparison Diagnostics ('cd')
+        - Classification Errors ('ce')
+        - All of the above ('all')
+
+    By default, all diagnostics are performed. For details of each test, see the
+    documentation for getDiagnostic.
+
+    Parameters
+    ----------
+        ems: [Emulator]
+            A list of Emulator objects.
+        targets: [{'val': float, 'sigma': float}] | [[float, float]] | None
+            The list of observations for the outputs of the simulator.
+        validation: DataFrame | None
+            The validation set, containing input values and simulator outputs.
+        analyze: bool
+            Should failing points be returned, or the full diagnostic data?
+        
+    Returns
+    -------
+    A DataFrame containing either the diagnostic results, or the collection of failed points.
+
+'''
 def validationDiagnostics(ems, targets = None, validation = None,
                           whichDiag = ['cd', 'ce', 'se'], analyze = True):
     if whichDiag == 'all' or (isinstance(whichDiag, (list, pd.core.series.Series, np.ndarray)) and 'all' in whichDiag):
@@ -111,23 +242,79 @@ def validationDiagnostics(ems, targets = None, validation = None,
         warnings.warn("No targets provided; cannot perform classification diagnostics")
         actualDiag = [w for w in actualDiag if not(w == 'ce')]
     if not analyze:
-        return [getDiagnostic(ems[oname], targets, validation, ad) for oname in list(ems.keys()) for ad in actualDiag]
-    invPoints = np.unique(np.vstack([analyzeDiagnostic(getDiagnostic(ems[oname], targets, validation, ad), ems[oname].outputName, targets) for oname in ems.keys() for ad in actualDiag]), axis = 0)
-    return pd.DataFrame(invPoints, columns = list(ems[list(ems.keys())[0]].ranges.keys()))
+        return [getDiagnostic(ems[i], targets, validation, ad) for i in range(len(ems)) for ad in actualDiag]
+    invPoints = np.unique(np.vstack([analyzeDiagnostic(getDiagnostic(ems[i], targets, validation, ad), ems[i].outputName, targets) for i in range(len(ems)) for ad in actualDiag]), axis = 0)
+    return pd.DataFrame(invPoints, columns = list(ems[0].ranges.keys()))
 
+'''
+    Classification Diagnostics
+
+    Shorthand for diagnostic test 'ce'.
+
+    Parameters
+    ----------
+    em: Emulator
+        The emulator for the output in question.
+    targets: [{'val': float, 'sigma': float}] | [[float, float]]
+        The output targets.
+    validation: DataFrame | None
+        The validation set of points.
+    cutoff: float:
+        The implausibility cutoff.
+    plt: bool
+        Whether to produce a plot of the results.
+    
+    Returns
+    -------
+    A DataFrame of points that failed the diagnostics.
+'''
 def classificationDiag(em, targets, validation, cutoff = 3, plt = False):
     return analyzeDiagnostic(getDiagnostic(em, targets, validation, 'ce'), em.outputName, targets, plt, cutoff = cutoff)
+
+'''
+    Comparison Diagnostics
+
+    Shorthand for diagnostic test 'cd'.
+
+    Parameters
+    ----------
+    em: Emulator
+        The emulator for the output in question.
+    targets: [{'val': float, 'sigma': float}] | [[float, float]] | None
+        If desired, the observations targets.
+    validation: DataFrame | None
+        The validation set of points.
+    sd: float
+        The range of uncertainty allowed for emulator/simulator prediction overlap.
+    plt: bool
+        Whether or not the results should be plotted.
+
+    Returns
+    -------
+    A DataFrame of points that failed the diagnostic.
+'''
 def comparisonDiag(em, targets, validation, sd = 3, plt = False):
     return analyzeDiagnostic(getDiagnostic(em, targets, validation, 'cd', sd), em.outputName, targets, plt)
+
+'''
+    Standard Errors
+
+    Shorthand for the diagnostic test 'se'.
+
+    Parameters
+    ----------
+    em: Emulator
+        The emulator for the output in question.
+    targets: [{'val': float, 'sigma': float}] | [[float, float]] | None
+        If desired, the observational targets.
+    validation: DataFrame | None
+        The validation set of points.
+    plt: bool
+        Whether or not the results should be plotted.
+
+    Returns
+    -------
+    A DataFrame of points failing the diagnostic test.
+'''
 def standardErrors(em, targets, validation, plt = False):
     return analyzeDiagnostic(getDiagnostic(em, targets, validation, 'se'), em.outputName, targets, plt)
-
-
-# df = pd.read_csv("../../Desktop/SIRData.csv")
-# dfTest = pd.read_csv("../../Desktop/SIRValidation.csv")
-# ranges = {'aSI': [0.1, 0.8], 'aIR': [0, 0.5], 'aSR': [0, 0.05]}
-# targets = {'nS': [580, 651], 'nI': {'val': 169, 'sigma': 8.45}, 'nR': [199, 221]}
-# tefd = emulatorFromData(df, ['nS', 'nI', 'nR'], ranges = ranges, checkRanges = True, verbose = True)
-# testem = tefd['nI']
-
-# print(validationDiagnostics(tefd, targets, dfTest))

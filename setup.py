@@ -39,7 +39,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         'numpy',
-        'pandas>=2.0.0', 
+        'pandas>=2.2.2', 
         'matplotlib',
         'copy'
     ],

@@ -483,5 +483,5 @@ class Correlator:
         outString = outString + prepend + "Hyperparameters: "
         for key in self.hyperp.keys():
             outString = outString + key + ": " + str(round(self.hyperp[key],4)) + "; "
-        outString = outString[:-2] + "\n" + prepend + "Nugget term: " + str(round(self.nugget, 4)) + "\n"
+        outString = outString[:-2] + "\n" + prepend + "Nugget term: " + str(round(self.nugget, 6)) + "\n"
         return f"{outString}"

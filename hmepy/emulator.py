@@ -7,10 +7,6 @@ import numbers
 import pandas as pd
 import numpy as np
 import copy
-## Testing
-# from correlations import Correlator
-# from utils import *
-## Production
 from hmepy.correlations import Correlator
 from hmepy.utils import *
 
@@ -584,7 +580,7 @@ class Emulator:
             return nEm
         nOEm = copy.deepcopy(self.oEm)
         nOEm.uSig = sigma
-        datin = evalFuncs(scaleInput, self.inData, self.ranges, forward = False)
+        datin = evalFuncs(scaleInput, self.inData, self.ranges, False)
         datin[self.outputName] = self.outData
         return nOEm.adjust(datin, self.outputName)
     def multSigma(self, m):
@@ -612,7 +608,7 @@ class Emulator:
             return nEm
         nOEm = copy.deepcopy(self.oEm)
         nOEm.multiplier = nOEm.multiplier*m
-        datin = evalFuncs(scaleInput, self.inData, self.ranges, forward = False)
+        datin = evalFuncs(scaleInput, self.inData, self.ranges, False)
         datin[self.outputName] = self.outData
         return nOEm.adjust(datin, self.outputName)
     def setHyperparams(self, hp, nug = None):
@@ -652,7 +648,7 @@ class Emulator:
             return nEm
         nOEm = copy.deepcopy(self.oEm)
         nOEm.corr = nOEm.corr.setHyperp(hp, nug)
-        datin = evalFuncs(scaleInput, self.inData, self.ranges, forward = False)
+        datin = evalFuncs(scaleInput, self.inData, self.ranges, False)
         datin[self.outputName] = self.outData
         return nOEm.adjust(datin, self.outputName)
     def __str__(self):

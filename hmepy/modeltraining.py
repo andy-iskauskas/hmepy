@@ -6,13 +6,10 @@ from sklearn.metrics import explained_variance_score
 from sklearn.feature_selection import SequentialFeatureSelector
 from scipy.optimize import minimize, Bounds
 ## Testing
-# from correlations import Correlator
-# from emulator import Emulator
-# from utils import *
-## Production
 from hmepy.correlations import Correlator
-from hmepy.utils import *
 from hmepy.emulator import Emulator
+from hmepy.utils import *
+from hmepy.fullwave import *
 import numpy as np
 import math
 import re
@@ -20,11 +17,13 @@ import warnings
 
 __all__ = ['emulatorFromData']
 
+## Helper function to obtain a design matrix from model
 def designMatrix(data, model, paramNames):
     mNames = getFeatureNames(model)
     mFuncs = [nameToFunction(mf, paramNames) for mf in mNames]
     return evalFuncs(mFuncs, data).T
 
+## Helper function to obtain the parameter covariance matrix
 def vcov(data, model, paramNames, outputName):
     X = designMatrix(data, model, paramNames)
     Y = data[outputName]
@@ -33,12 +32,45 @@ def vcov(data, model, paramNames, outputName):
     dof = np.shape(X)[0] - np.shape(X)[1]
     return Xinv * np.sum(resid**2/dof)
 
+'''
+    Model generation
+
+    Creates a best fit of coefficients for a given data set.
+
+    There are two ways to generate the model: either starting with all possible
+    terms (including interaction terms) up to order n, and then stepwise removing;
+    or starting with an intercept term only and stepwise adding terms up to order n.
+    In each case, only if the fit criterion is improved is a deletion or addition
+    upheld. Which method is chosen depends on the value of add: if add = True then
+    stepwise addition is performed, else stepwise deletion is performed. If there is
+    not enough data to allow for a full model to be fitted, and add = False, then a
+    warning will be provided and stepwise addition will be performed.
+
+    Parameters
+    ----------
+    data: DataFrame
+        The input and output values, with each row corresponding to one observation.
+    ranges: {'name': [float, float], ...}
+        The ranges of the input parameters.
+    outputName: str
+        The name of the output to create the model for.
+    add: bool
+        If False, stepwise-deletion is performed; else stepwise addition is performed.
+    order: int
+        The maximum order of the regression terms (including interactions).
+    verbose: bool
+        Whether to print progress messages during model fit.
+    
+    Returns
+    -------
+    A LinearRegression object.
+'''
 def getCoefModel(data, ranges, outputName, add = False,
                   order = 2, verbose = False):
     if verbose: print(outputName)
     Xdat = data.loc[:,ranges.keys()]
     Ydat = data.loc[:,outputName]
-    if not(add) and math.comb(len(ranges)+order, len(ranges)) > np.shape(data)[0]:
+    if not(add) and math.comb(len(ranges)+order, len(ranges)) > 2/3 * np.shape(data)[0]:
         if verbose:
             print("""Maximum number of regression terms is greater
                   than the available degress of freedom. Changing to add = True.""")
@@ -48,7 +80,7 @@ def getCoefModel(data, ranges, outputName, add = False,
     else:
         dirStr = "backward"
     model = Pipeline([
-        ('poly', PolynomialFeatures(2, include_bias = False)),
+        ('poly', PolynomialFeatures(order, include_bias = False)),
         ('SFS', SequentialFeatureSelector(LinearRegression(),
                                           direction = dirStr,
                                           scoring = 'explained_variance',
@@ -63,6 +95,56 @@ def getCoefModel(data, ranges, outputName, add = False,
         return None
     return model
 
+'''
+    Hyperparameter Estimation
+
+    Performs hyperparameter fitting for a linear model.
+
+    The 'optimal' regression coefficients beta and standard deviation sigma
+    can be found in closed form, given the hyperparameters of the correlation structure.
+    Those hyperparameters are estimated by first evaluating the likelihood on a coarse
+    grid and finding the value(s) that maximise this likelihood (by default, the log-
+    likelihood is used). This initial guess can be used as a 'seed' for a traditional
+    optimisation procedure, giving the 'best' choice for the hyperparameters and the
+    nugget term for the weakly stationary process. Once these are found, the final MLE
+    for the regression coefficients beta and global variance sigma^2 are calculated.
+
+    If beta is not None, then the regression coefficients are assumed to be fixed (often
+    by a process such as that in getCoefModel); otherwise, they are updated with each change
+    in hyperparameter during the optimisation procedure. If performOpt is False, then the
+    result of the grid search is used as the final result; due to the often subdominant effect of
+    the correlation structure within emulation, an 'optimal' choice of the hyperparameters is
+    frequently unnecessary.
+
+    Parameters
+    ----------
+    inputs: DataFrame
+        The input parameter values for each output value.
+    outputs: [float] | DataFrame
+        The output values associated with the inputs.
+    model: LinearRegression
+        The fitted linear regression model.
+    hpRange: {'hp': [float, float], ...}
+        The allowed ranges of the hyperparameters, as a named dict.
+    corrName: str
+        Which correlation function to use - the string should correspond to a valid function.
+    beta: [float] | None
+        If relevant, the pre-fitted regression coefficients.
+    delta: float | None
+        The value of the nugget term, in the range [0,1].
+    nSteps: int
+        The coarseness of the grid: higher nSteps gives a finer grid.
+    verbose: bool
+        Whether to print out progress messages.
+    logLik: bool
+        If True, log-likelihood is used to assess quality of fit.
+    performOpt: bool
+        If True, optimisation is performed to find the best hyperparameters.
+    
+    Returns
+    -------
+    A named dict consisting of hyperparameters, nugget term, coefficients, and sigma.
+'''
 def hyperparameterEstimate(inputs, outputs, model, hpRange,
                            corrName = "expSq", beta = None, delta = None,
                            nSteps = 30, verbose = False, logLik = True,
@@ -96,7 +178,7 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
             delta = 0
         A = corrMat(inputs, hp, delta)
         aDet = np.linalg.det(A)
-        if aDet < 0:
+        if aDet <= 0:
             aDet = 1e-20
         Ainv = np.linalg.inv(A)
         if beta is None:
@@ -106,6 +188,8 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
             bML = beta
         modDiff = outputs - np.matmul(H, bML)
         sigSqML = np.matmul(modDiff.T, np.matmul(Ainv, modDiff))/len(outputs)
+        if sigSqML <= 0:
+            sigSqML = 1e-20
         if logLik:
             lik = -len(outputs) * math.log(sigSqML)/2 - math.log(aDet)/2
         else:
@@ -168,18 +252,101 @@ def hyperparameterEstimate(inputs, outputs, model, hpRange,
                      'beta': otherPars['beta']}
     return allPoints
 
+'''
+    Emulation construction
+
+    Given data, create an Emulator object for each output.
+
+    Many of the parameters passed to this function are optional: the minimal operating
+    example requires inputData, outputNames, and one of ranges or inputNames. If ranges
+    is provided, the names are intuited from that; otherwise, the names are taken from
+    inputNames and each parameter range is assumed to be [-1, 1].
+
+    If the minimal collection of arguments is provided, then the emulators are created as
+    follows:
+    - The basis functions and associated regression coefficients are generated up to quadratic
+      order, allowing for interactions terms. These regression parameters are henceforth assumed
+      'known' (so that Var[beta] = 0).
+    - The correlation function, c(x, x'), is chosen to be expSq, and a corresponding Correlator
+      object is created. The hyperparameters of the correlation structure are determined using a
+      constrained optimisation via maximum likelihood. This determines global variance sigma^2,
+      correlation length, and size of the nugget term.
+    - Emulators are created with these prior specifications, then updated with respect to the data
+      using the Bayes linear update formulae, resulting in trained Emulator objects.
+
+    In the presence of prior beliefs about the structure of the emulators, information can be supplied
+    directly using the specifiedPriors argument. This may contain specific regression coefficient
+    values beta and regression functions func, correlation structures u, hyperparameter values hyperP,
+    and nugget term values delta, and need not include all.
+
+    Some rudimentary data handling functionality exists (for instance, removing NA rows and checking
+    for data suitability with respect to observational data, if provided), but is not a
+    substitute for sense-checking data directly. If naRM = True, then rows containing at least
+    one None or NA value are removed before training; if targets are provided, then output values are
+    checked against these to ensure that at least the targets can be attained somewhere within the
+    volume defined by the training points. If checkRanges = True, then the input ranges are potentially
+    modified to be a (conservative) minimum enclosing hyperrectangle containing at least the
+    original ranges; this is common in later waves of emulation and history matching when the acceptable
+    space has been reduced, but should only be used if it is believed that the collection of
+    training points adequately describes the full space of interest.
+
+    Parameters
+    ----------
+    inputData: DataFrame
+        Required. A DataFrame containing parameter and output values, one observation to a row.
+    outputNames: [str]
+        Required. The names of the outputs to train emulators to.
+    ranges: {'name': [float, float], ...}
+        Required if inputNames = None. A named dict of input parameter ranges, as an upper and lower bound.
+    inputNames: [str]
+        Required if ranges = None. The names of the input parameters.
+    emulatorType: str | None
+        What type of emulator to train (deterministic, stochastic, multistate).
+    specifiedPriors: dict
+        A named list of priors, as described above.
+    order: int
+        The maximal order of the regression models fitted. Default is 2 for quadratic fits.
+    betaVar: bool
+        If True, then an estimate for Var[beta] is determined; else the regression coefficients are deemed known.
+    corrName: str
+        The correlation type to use (for example expSq, matern, ratQuad).
+    adjusted: bool
+        If True, Emulator objects undergo Bayes linear adjustment before return.
+    discrepancies: {'outname': {'internal': float, 'external': float}} | None
+        The internal and external model discrepancy associated with each output.
+    verbose: bool
+        Whether to print progress messages during the fitting process.
+    naRm: bool
+        Whether to remove NA-containing rows (where they exist).
+    checkRanges: bool
+        If True, ranges are modified based on prior ranges and the extent of the training data.
+    targets: {'name': {'val': float, 'sigma': float}, ...} | {'name': [lower, upper]} | None
+        The observational data, in the usual form.
+    hasHierarchy: bool
+        Mostly internal; determines whether hierarchical emulation has been performed.
+    covOpts: dict | None
+        If covariance emulation is performed, any prior choices for the covariance hyperparameters.
+    **kwargs:
+        Any other arguments to pass to functions getCoefModel and hyperparameterEstimate.
+
+    Returns
+    -------
+    A list of Emulator objects, one for each of the outputs desired.
+'''
 def emulatorFromData(inputData, outputNames, ranges = None,
                      inputNames = None, emulatorType = None,
                      specifiedPriors = None, order = 2, betaVar = False,
                      corrName = "expSq", adjusted = True, discrepancies = None,
                      verbose = False, naRm = False, checkRanges = True,
                      targets = None, hasHierarchy = False, covOpts = None,
-                     *args):
+                     **kwargs):
     if not(all([outname in inputData.columns for outname in outputNames])):
         raise ValueError("outputNames do not match data.")
-    if not(targets is None):
-        ## Do some preflight stuff?
-        pass
+    if not(targets is None) and len(np.intersect1d(list(targets.keys()), outputNames)) == len(outputNames):
+        doPreflight = preflight(inputData, targets, verbose = verbose, naRm = naRm)
+        if doPreflight and verbose:
+            print("Some outputs may not be adequately emulated due to consistent over/underestimation of outputs in training data.")
+            print("Consider looking at the outputs (e.g. using behaviourPlot); outputs may require extra runs and/or transformation of data.")
     if ranges is None:
         if inputNames is None:
             raise ValueError("One of ranges or inputNames must be provided.")
@@ -194,7 +361,7 @@ def emulatorFromData(inputData, outputNames, ranges = None,
         emulatorType = "default"
     ## Stuff about variance emulation and repetitions at points
     if naRm:
-        inputData = inputData.dropna()
+        inputData.dropna(inplace = True)
     if checkRanges:
         newRanges = {}
         for name in ranges.keys():
@@ -228,54 +395,75 @@ def emulatorFromData(inputData, outputNames, ranges = None,
             else:
                 modelBetaSigmas = [vcov(inputScaled, models[ind], list(ranges.keys()), outputNames[ind]) for ind in range(len(models))]
         else:
-            ## If priors are provided, they're allocated here.
-            pass
+            if ('beta' in specifiedPriors) and all(['mu' in specifiedPriors['beta'][key].keys() for key in list(specifiedPriors['beta'].keys())]):
+                betaPriors = specifiedPriors['beta']
+                if any([len(betaPriors[key]['mu']) != len(betaPriors[key]['func'])]):
+                    raise KeyError("Provided regression functions and coefficients do not have the same length.")
+                modelBetaMus = {key: betaPriors[key]['mu'] for key in betaPriors.keys()}
+                if all(['sigma' in betaPriors[key].keys() for key in betaPriors.keys()]):
+                    modelBetaSigmas = {key: betaPriors[key]['sigma'] for key in betaPriors.keys()}
+                else:
+                    modelBetaSigmas = {}
+                    for key in list(betaPriors.keys()):
+                        thisOutput = betaPriors[key]
+                        if not 'sigma' in thisOutput or np.shape(thisOutput['sigma'])[0] != len(thisOutput['mu'] or np.shape(thisOutput['sigma'])[1] != len(thisOutput['mu'])):
+                            modelBetaSigmas[key] = np.diag(np.zeros(len(thisOutput['mu'])))
+                        else:
+                            modelBetaSigmas[key] = thisOutput['sigma']  
+                modelBasisF = {key: betaPriors[key]['func'] for key in betaPriors.keys()}
+            else:
+                modelBasisF = specifiedPriors['func']
+                modelBetaSigmas = {key: np.zeros(len(modelBasisF[key])) for key in modelBasisF.keys()}
+        if not specifiedPriors is None and hasattr(specifiedPriors, 'delta'):
+            modelDeltas = specifiedPriors['delta']
+        else:
+            modelDeltas = None
+        modelUSigmas = None
+        modelUCorrs = None
+        if not specifiedPriors is None and hasattr(specifiedPriors, 'u'):
+            if all([hasattr(specifiedPriors['u'][key], 'sigma') for key in list(specifiedPriors['u'].keys())]):
+                modelUSigmas = {key: specifiedPriors['u'][key]['sigma'] for key in specifiedPriors['u'].keys()}
+            if all([hasattr(specifiedPriors['u'][key], 'corr') for key in list(specifiedPriors['u'].keys())]):
+                modelUCorrs = [specifiedPriors['u'][key]['corr'] for key in list(specifiedPriors['u'].keys())]
+        if modelUCorrs is None:
+            modelUCorrs = [corrName for i in range(len(models))]
         if verbose:
             print("Building correlation structures...")
         if not(specifiedPriors is None) and hasattr(specifiedPriors, 'hyperP'):
-            ## Allocate priors
-            pass
+            thran = specifiedPriors['hyperP']
         else:
-            ## Want to catch ill-defined correlation names here.
-            # For now, assume all is well.
-            if not corrName in ['expSq', 'ornUhl', 'matern', 'ratQuad']:
-                try:
-                    thran = [thetaRanges for i in range(len(models))]
-                except:
-                    warnings.warn("User-defined correlation function " + corrName + " chosen but no corresponding hyperparameter ranges. Reverting to expSq.")
-                    corrName = 'expSq'
-            if corrName == 'expSq' or corrName == 'ornUhl':
-                thran = [{'theta': [min(2/(order+1), 1/3), 2/order]} for i in range(len(models))]
-            if corrName == 'matern':
-                thran = [{'theta': [min(2/(order+1), 1/3), 2/order], 'nu': [0.5, 3.5]} for i in range(len(models))]
-            if corrName == 'ratQuad':
-                thran = [{'theta': [min(2/(order+1), 1/3), 2/order], 'alpha': [0.01,5]} for i in range(len(models))]
+            if 'thetaRanges' in kwargs:
+                thran = kwargs.get('thetaRanges')
+            else:
+                def getThran(cName):
+                    tRange = None
+                    if cName == 'expSq' or corrName == 'ornUhl':
+                        tRange = {'theta': [min(2/(order+1), 1/3), 2/order]}
+                    if cName == 'matern':
+                        tRange = {'theta': [min(2/(order+1), 1/3), 2/order], 'nu': [0.5, 3.5]}
+                    if cName == 'ratQuad':
+                        tRange = {'theta': [min(2/(order+1), 1/3), 2/order], 'alpha': [0.01,5]}
+                    if tRange is None:
+                        warnings.warn("User-defined correlation function" + cName + "chosen but no corresponding hyperparameter ranges. Reverting to expSq.")
+                        return getThran("expSq")
+                    return tRange
+                thran = [getThran(cn) for cn in modelUCorrs]
         specs = [hyperparameterEstimate(inputScaled.loc[:,ranges.keys()],
                                         inputScaled.loc[:,outputNames[i]],
                                         models[i],
                                         thran[i],
-                                        corrName,
+                                        modelUCorrs[i],
                                         modelBetaMus[i],
-                                        delta = None,
+                                        delta = modelDeltas,
                                         verbose = verbose) for i in range(len(models))]
+        if modelUSigmas is None:
+            modelUSigmas = [specs[i]['sigma'] for i in range(len(specs))]
         if verbose:
             print("Creating emulators...")
-        emlist = {}
-        for i in range(len(models)):
-            newEm = Emulator(modelBasisF[i], beta = {'mu': modelBetaMus[i], 'sigma': modelBetaSigmas[i]},
-                             u = {'sigma': specs[i]['sigma'], 'corr': Correlator(corrName, specs[i]['hp'], specs[i]['delta'])},
-                             ranges = ranges, model = models[i], outName = outputNames[i])
-            emlist[outputNames[i]] = newEm
+        emlist = [Emulator(modelBasisF[i], beta = {'mu': modelBetaMus[i], 'sigma': modelBetaSigmas[i]},
+                        u = {'sigma': modelUSigmas[i], 'corr': Correlator(modelUCorrs[i], specs[i]['hp'], specs[i]['delta'])},
+                        ranges = ranges, model = models[i], outName = outputNames[i]) for i in range(len(models))]
         if (adjusted):
-            for i in outputNames:
+            for i in range(len(emlist)):
                 emlist[i] = emlist[i].adjust(inputData, emlist[i].outputName)
         return emlist
-
-# df = pd.read_csv("../../Desktop/SIRData.csv")
-# dfTest = pd.read_csv("../../Desktop/SIRValidation.csv")
-# ranges = {'aSI': [0.1, 0.8], 'aIR': [0, 0.5], 'aSR': [0, 0.05]}
-# tefd = emulatorFromData(df, ['nS', 'nI', 'nR'], ranges = ranges, checkRanges = True, verbose = True)
-# print(tefd['nI'])
-# preds = tefd['nI'].getExp(dfTest)
-# print(preds - dfTest['nI'])
-# print(tefd['nI'].getCov(dfTest, full = True))
