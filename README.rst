@@ -12,9 +12,9 @@ The *hmepy* package contains tools for the automated construction of emulators, 
 Installation
 ============
 
-Clone the `repo<https://github.com/andy-iskauskas/hmepy>`_ into an appropriate location. From terminal, navigate to the ``hmepy-main`` directory and run ``python3 -m build``; navigate up a directory and run ``python3 -m pip install -e hmepy-main``. This should install the package into the current environment.
+Clone the `repo <https://github.com/andy-iskauskas/hmepy>`_ into an appropriate location. From terminal, navigate to the ``hmepy-main`` directory and run ``python3 -m build``; navigate up a directory and run ``python3 -m pip install -e hmepy-main``. This should install the package into the current environment.
 
 Documentation
 =============
 
-Documentation for individual functions can be accessed via the usual methods: for example, ``help(emulatorFromData)``. A companion paper to the `R package<https://github.com/andy-iskauskas/hmer>` details the base functionality in more depth, including an example.
+Documentation for individual functions can be accessed via the usual methods: for example, ``help(emulatorFromData)``. A companion paper to the `R package <https://github.com/andy-iskauskas/hmer>`_ details the base functionality in more depth, including an example.
