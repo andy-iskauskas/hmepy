@@ -6,7 +6,7 @@ from hmepy.emulator import Emulator
 from hmepy.correlations import Correlator
 from hmepy.modeltraining import emulatorFromData
 from hmepy.implausibility import nthImplausible
-from hmepy.utils import nameToFunction
+from hmepy.utils import nameToFunction, evalFuncs, scaleInput
 
 __all__ = ['collectEmulators', 'getRanges',
 'importEmulatorFromJSON', 'exportEmulatorToJSON']
