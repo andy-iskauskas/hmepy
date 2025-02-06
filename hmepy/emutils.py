@@ -1,10 +1,15 @@
 import numpy as np
 import pandas as pd
+import json
+import re
 from hmepy.emulator import Emulator
+from hmepy.correlations import Correlator
 from hmepy.modeltraining import emulatorFromData
 from hmepy.implausibility import nthImplausible
+from hmepy.utils import nameToFunction
 
-__all__ = ['collectEmulators', 'getRanges']
+__all__ = ['collectEmulators', 'getRanges',
+'importEmulatorFromJSON', 'exportEmulatorToJSON']
 
 def collectEmulators(ems, targets = None, cutoff = 3,
                      ordering = ['p', 'i', 'v'], sampleSize = 200):
@@ -121,3 +126,111 @@ def getRanges(ems, minimal = True):
         whichChoose = np.apply_along_axis(np.argmax, 0, rangeWidths)
     newRanges = [list(ems[whichChoose[i]].ranges.values())[i] for i in range(len(list(ems[0].ranges.values())))]
     return dict(zip(list(ems[0].ranges.keys()), newRanges))
+
+
+def exportEmulatorToJSON(ems, inputs = None, filename = None, outputType = "json"):
+    if isinstance(ems, Emulator):
+        if inputs is None:
+            inputs = {"data": None}
+        inputRanges = ems.ranges
+        outName = ems.outputName
+        inputUID = None
+        if (hasattr(ems, "inData")):
+            inputDF = evalFuncs(scaleInput, ems.inData, inputRanges, False)
+            inputUID = inputDF.apply(lambda x: hash(tuple(x)), axis = 1)
+            inputDF[outName] = ems.outData
+            if (not inputs['data'] is None):
+                if not outName in list(inputs["data"].columns):
+                    inputs["data"][outName] = None
+                alreadyUsed = [str(uid) in str(inputs["data"]["uid"]) for uid in inputUID]
+                for i in range(len(alreadyUsed)):
+                    if alreadyUsed[i]:
+                        matchingIndex = inputs["data"][inputs["data"]["uid"] == inputUID[i]].index[0]
+                        inputs["data"].loc[matchingIndex, outName] = inputDF.loc[i, outName]
+                inputSubset = pd.concat([inputUID, inputDF], axis = 1)[np.logical_not(alreadyUsed)]
+                inputSubset.columns = ["uid"] + list(inputDF.columns)
+                if not np.shape(inputSubset)[0] == 0:
+                    for nm in list(inputs["data"].columns):
+                        if not nm in list(inputs["data"].columns):
+                            inputSubset[nm] = None
+                    inputs['data'] = pd.concat([inputs["data"], inputSubset], axis = 0)
+            else:
+                inputs['data'] = pd.concat([inputUID, inputDF], axis = 1)
+                inputs['data'].columns = ["uid"] + list(inputDF.columns)
+        else:
+            thisDat = "NULL"
+        inputs = {"em": {
+            "in.ranges": inputRanges,
+            "out.name": outName,
+            "input.uid": list(inputUID),
+            "basis.f": list(getFeatureNames(ems.model)), ## Need to fix this to be consistent!
+            "basis.beta": list(ems.bMu),
+            "emulator.discrepancies": ems.disc,
+            "corr.name": ems.corr.corrName,
+            "corr.sigma": ems.uSig,
+            "corr.details": ems.corr.hyperp,
+            "nugget": ems.corr.nugget
+        },
+        "data": inputs['data']}
+    else:
+        if inputs is None:
+            inputs = {
+                "data": None,
+                "ems": None
+            }
+        ems = collectEmulators(ems, ordering = "p")
+        for em in ems:
+            exEmDetails = exportEmulatorToJSON(em, inputs, outputType = "object")
+            if inputs['ems'] is None:
+                inputs['ems'] = {"emulator1": None}
+                inputIndex = 1
+            else:
+                inputIndex = len(inputs['ems'])+1
+            inputs['ems']['emulator' + str(inputIndex)] = exEmDetails['em']
+            inputs['data'] = exEmDetails['data']
+    if filename is None:
+        if outputType == "json":
+            inputs['data'] = inputs['data'].to_dict(orient = "records")
+            jsonRes = json.dumps(inputs, ensure_ascii = False)
+            return jsonRes
+        else:
+            return inputs
+    else:
+        inputs['data'] = inputs['data'].to_dict(orient = "records")
+        with open(filename, 'w') as f:
+            json.dump(inputs, f, ensure_ascii = False, indent = 4)
+
+def importEmulatorFromJSON(filename = None, details = None):
+    if not filename is None:
+        with open(filename) as f:
+            details = json.load(f)
+    inputData = pd.DataFrame(details['data'])
+    if "em" in list(details.keys()):
+        inEmDetails = details['em']
+        if len(np.shape(inEmDetails['basis.f'])) == 2:
+            actualFuncs = [inEmDetails['basis.f'][i][1] for i in range(len(inEmDetails['basis.f']))]
+            newFuncs = [re.sub(r"x\[\[(\d+)\]\]", lambda x: list(inEmDetails['in.ranges'].keys())[int(x.group(1))-1], actualFuncs[i]) for i in range(len(actualFuncs))]
+            newFuncs = [re.sub(r"\*\s", "", re.sub(r"return\((.*)\)", "\\1", newFuncs[i])) for i in range(len(newFuncs))]
+            functions = [nameToFunction(newFuncs[i], list(inEmDetails['in.ranges'])) for i in range(len(newFuncs))]
+        else:
+            if any([re.search(nm, elem) for nm in inEmDetails['in.ranges'] for elem in inEmDetails['basis.f']]):
+                rangeNames = list(inEmDetails['in.ranges'].keys())
+                functions = [nameToFunction(inEmDetails['basis.f'][i], rangeNames) for i in range(len(inEmDetails['basis.f']))]
+        inDataRelev = [inputData['uid'][i] in inEmDetails['input.uid'] for i in range(np.shape(inputData)[0])]
+        inData = inputData.iloc[inDataRelev,:]
+        for key in ["corr.name", 'corr.sigma', "out.name"]:
+            if not isinstance(inEmDetails[key], (str, int, float)):
+                inEmDetails[key] = inEmDetails[key][0]
+        inEmDetails['corr.name'] = re.sub("_([a-z])", lambda x: x.group(1).upper(), inEmDetails['corr.name'])
+        em = emulatorFromData(inData, [inEmDetails['out.name']],
+        inEmDetails['in.ranges'], discrepancies = inEmDetails['emulator.discrepancies'],
+        specifiedPriors = {"func": functions, "beta": {"mu": inEmDetails['basis.beta']},
+        "u": {"sigma": inEmDetails['corr.sigma'], 
+        "corr": Correlator(inEmDetails['corr.name'], inEmDetails['corr.details'],
+        nug = inEmDetails['nugget'])}}, verbose = False, moreVerbose = False, checkRanges = False)
+    else:
+        emList = [importEmulatorFromJSON(details = {
+                "data": inputData, "em": details['ems'][key]
+            })[0] for key in list(details['ems'].keys())]
+        return emList
+    return em

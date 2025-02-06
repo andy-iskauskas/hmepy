@@ -7,7 +7,7 @@ dependencies = [
     "scikit-learn",
     "requests",
     "importlib-metadata",
-    "matplotlib"
+    "matplotlib",
 ]
 
 [tool.pytest.ini_options]

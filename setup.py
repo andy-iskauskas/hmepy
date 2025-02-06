@@ -41,6 +41,7 @@ setup(
         'numpy',
         'pandas>=2.2.2', 
         'matplotlib',
-        'copy'
+        'copy',
+        'json',
     ],
 )
