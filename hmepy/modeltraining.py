@@ -458,7 +458,7 @@ def emulatorFromData(inputData, outputNames, ranges = None,
                                         modelUCorrs[i],
                                         modelBetaMus[i],
                                         delta = modelDeltas,
-                                        verbose = verbose) for i in range(len(models))]
+                                        verbose = verbose, performOpt = False) for i in range(len(models))]
         if modelUSigmas is None:
             modelUSigmas = [specs[i]['sigma'] for i in range(len(specs))]
         if verbose:
