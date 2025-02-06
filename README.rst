@@ -12,7 +12,7 @@ The *hmepy* package contains tools for the automated construction of emulators, 
 Installation
 ============
 
-Clone the `repo <https://github.com/andy-iskauskas/hmepy>`_ into an appropriate location. From terminal, navigate to the ``hmepy-main`` directory and run ``python3 -m build``; navigate up a directory and run ``python3 -m pip install -e hmepy-main``. This should install the package into the current environment.
+Clone the `repo <https://github.com/andy-iskauskas/hmepy>`_ into an appropriate location. From terminal, navigate to the ``hmepy-main`` directory and run ``python3 -m pip install -e .``. This should install the package into the current environment.
 
 Documentation
 =============
