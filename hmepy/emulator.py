@@ -204,7 +204,7 @@ class Emulator:
             self.activeVars = tvecsum > 1
         else:
             self.activeVars = aVars
-        if not(self.activeVars).all():
+        if not(self.activeVars).any():
             self.activeVars = np.full(len(ranges), True, dtype = bool)
         if not(discs is None):
             try:

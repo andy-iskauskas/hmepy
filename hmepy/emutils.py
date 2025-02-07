@@ -142,11 +142,11 @@ def exportEmulatorToJSON(ems, inputs = None, filename = None, outputType = "json
             if (not inputs['data'] is None):
                 if not outName in list(inputs["data"].columns):
                     inputs["data"][outName] = None
-                alreadyUsed = [str(uid) in str(inputs["data"]["uid"]) for uid in inputUID]
+                alreadyUsed = [str(uid) in str(list(inputs["data"]["uid"])) for uid in inputUID]
                 for i in range(len(alreadyUsed)):
                     if alreadyUsed[i]:
-                        matchingIndex = inputs["data"][inputs["data"]["uid"] == inputUID[i]].index[0]
-                        inputs["data"].loc[matchingIndex, outName] = inputDF.loc[i, outName]
+                        matchingIndex = inputs["data"][inputs["data"]["uid"] == list(inputUID)[i]].index[0]
+                        inputs["data"].loc[matchingIndex, outName] = inputDF.iloc[i][outName]
                 inputSubset = pd.concat([inputUID, inputDF], axis = 1)[np.logical_not(alreadyUsed)]
                 inputSubset.columns = ["uid"] + list(inputDF.columns)
                 if not np.shape(inputSubset)[0] == 0:
