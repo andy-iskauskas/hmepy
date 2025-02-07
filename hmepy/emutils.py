@@ -158,12 +158,12 @@ def exportEmulatorToJSON(ems, inputs = None, filename = None, outputType = "json
                 inputs['data'] = pd.concat([inputUID, inputDF], axis = 1)
                 inputs['data'].columns = ["uid"] + list(inputDF.columns)
         else:
-            thisDat = "NULL"
+            thisDat = None
         inputs = {"em": {
             "in.ranges": inputRanges,
             "out.name": outName,
             "input.uid": list(inputUID),
-            "basis.f": list(getFeatureNames(ems.model)), ## Need to fix this to be consistent!
+            "basis.f": list(getFeatureNames(ems.model)),
             "basis.beta": list(ems.bMu),
             "emulator.discrepancies": ems.disc,
             "corr.name": ems.corr.corrName,
@@ -171,7 +171,7 @@ def exportEmulatorToJSON(ems, inputs = None, filename = None, outputType = "json
             "corr.details": ems.corr.hyperp,
             "nugget": ems.corr.nugget
         },
-        "data": inputs['data']}
+        "data": inputs['data'].fillna("NULL")}
     else:
         if inputs is None:
             inputs = {
