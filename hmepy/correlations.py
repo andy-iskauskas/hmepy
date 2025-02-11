@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import math
 from copy import deepcopy
+from sklearn.metrics.pairwise import pairwise_distances
 
 __all__ = [
     'expSq', 'matern', 'ornUhl',
@@ -19,21 +20,35 @@ def getDist(df1, df2):
     '''
     Computes distances between points defined by two DataFrames.
     The DataFrames are such that each row corresponds to a single point.
-    
-    :param df1: The first collection of n points
-    :param df2: The second collection of m points
-    :return: The distances, as a numpy.array of size nxm
-    '''
 
+    :param df1: The first collection of n points
+    :param df2: The second collecton of m points
+    :return: The (Euclidean) distance, as a numpy.array of size nxm
+    '''
     if len(df1.columns.intersection(df2.columns)) != df1.shape[1]:
         raise TypeError("Dimensions of DataFrames do not match.")
     df2 = df2[list(df1.columns.values)]
-    a1 = df1.to_numpy()
-    a2 = df2.to_numpy()
-    tempvec = np.array([math.dist(a1[0], a2[j]) for j in range(a2.shape[0])])
-    for i in range(1, a1.shape[0]):
-        tempvec = np.vstack((tempvec, [math.dist(a1[i], a2[j]) for j in range(a2.shape[0])]))
-    return np.transpose(np.array(tempvec.reshape(a1.shape[0], a2.shape[0])))
+    return np.transpose(pairwise_distances(df1, df2))
+
+# def getDist(df1, df2):
+#     '''
+#     Computes distances between points defined by two DataFrames.
+#     The DataFrames are such that each row corresponds to a single point.
+    
+#     :param df1: The first collection of n points
+#     :param df2: The second collection of m points
+#     :return: The distances, as a numpy.array of size nxm
+#     '''
+
+#     if len(df1.columns.intersection(df2.columns)) != df1.shape[1]:
+#         raise TypeError("Dimensions of DataFrames do not match.")
+#     df2 = df2[list(df1.columns.values)]
+#     a1 = df1.to_numpy()
+#     a2 = df2.to_numpy()
+#     tempvec = np.array([math.dist(a1[0], a2[j]) for j in range(a2.shape[0])])
+#     for i in range(1, a1.shape[0]):
+#         tempvec = np.vstack((tempvec, [math.dist(a1[i], a2[j]) for j in range(a2.shape[0])]))
+#     return np.transpose(np.array(tempvec.reshape(a1.shape[0], a2.shape[0])))
 
 def outerDist(df1, df2, dimname):
     '''
