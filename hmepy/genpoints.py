@@ -313,7 +313,7 @@ def generateNewDesign(ems, nPoints, z, method = "default", cutoff = 3,
                 if sum(whichMatch) >= requiredPoints:
                     optimalCut = i
                     break
-            minCutoff = cutoffSequence[[i for i in range(len(pointsAccept)) if not pointsAccept[i] == 0][0]-1]
+            minCut = cutoffSequence[[i for i in range(len(pointsAccept)) if not pointsAccept[i] == 0][0]-1]
             isAsymp = (optimalCut > cutoff and (pointsAccept[-2] == 0 or pointsAccept[-1] >= nPoints))
         if isAsymp and optimalCut-cutoff > opts['cutoff_tolerance']:
             if verbose:
@@ -358,7 +358,7 @@ def generateNewDesign(ems, nPoints, z, method = "default", cutoff = 3,
         newOpts['resample'] = 0
         points = generateNewDesign(ems, nPoints, z, [meth for meth in whichMethods if not(meth == "lhs")],
                                cutoff = cutoff, plausibleSet = points, verbose = verbose,
-                               opts = newOpts, cutoffInfo = [minCutoff, thisCutoff])
+                               opts = newOpts, cutoffInfo = [minCut, thisCutoff])
     else:
         if thisCutoff != cutoff:
             if verbose: print("Point implausibilities within tolerance; proposed points have maximum implausibility " + str(round(thisCutoff, 4)))
