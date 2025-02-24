@@ -9,7 +9,8 @@ from hmepy.implausibility import nthImplausible
 from hmepy.utils import *
 
 __all__ = ['collectEmulators', 'getRanges',
-'importEmulatorFromJSON', 'exportEmulatorToJSON']
+'importEmulatorFromJSON', 'exportEmulatorToJSON',
+'spaceReduction']
 
 def collectEmulators(ems, targets = None, cutoff = 3,
                      ordering = ['p', 'i', 'v'], sampleSize = 200):
@@ -234,3 +235,23 @@ def importEmulatorFromJSON(filename = None, details = None):
             })[0] for key in list(details['ems'].keys())]
         return emList
     return em
+
+def spaceReduction(ems, points, targets, prevPoints = None):
+    def wilsonInt(ns, n, z = 1.96):
+        pup = (ns + z**2/2)/(n+z**2) + z/(n+z**2) * np.sqrt((ns*(n-ns))/n + z**2/4)
+        pdown = (ns + z**2/2)/(n+z**2) - z/(n+z**2) * np.sqrt((ns*(n-ns))/n + z**2/4)
+        return pup, pdown
+    if not prevPoints is None:
+        inputNames = list(ems[0].ranges.keys())
+        prevInputs = prevPoints.loc[:,inputNames]
+        newInputs = points.loc[:,inputNames]
+        prevVol = np.prod(prevInputs.max() - prevInputs.min())
+        newVol = np.prod(newInputs.max() - newInputs.min())
+        volRatio = newVol/prevVol
+    else:
+        volRatio = None
+    acceptedPoints = nthImplausible(ems, points, targets, cutoff = 3)
+    upperPercent, lowerPercent = wilsonInt(sum(acceptedPoints), np.shape(points)[0])
+    if not volRatio is None:
+        lowerPercent = min(lowerPercent, volRatio)
+    return lowerPercent, upperPercent
