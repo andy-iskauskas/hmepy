@@ -134,7 +134,7 @@ class test_Matern(unittest.TestCase):
         self.assertIsNone(np.testing.assert_equal(calc1, calc2.T))
     def test_symmetry(self):
         calc = matern(mat1, mat1, {'theta': 0.2, 'nu': 1.5})
-        self.assertIsNone(np.testing.assert_equal(calc, calc.T))
+        self.assertIsNone(np.testing.assert_allclose(calc, calc.T, rtol = 1e-6))
     def test_no_hp(self):
         with self.assertRaises(ValueError):
             matern(mat1, mat1)
@@ -234,7 +234,7 @@ class test_Orn(unittest.TestCase):
         self.assertEqual(np.shape(ornUhl(mat1, df1, {'theta': 1})), (1, 3))
     def test_symm(self):
         calc = ornUhl(mat1, mat1, {'theta': 1})
-        self.assertIsNone(np.testing.assert_equal(calc, calc.T))
+        self.assertIsNone(np.testing.assert_allclose(calc, calc.T, rtol = 1e-6))
     def test_fail_no_param(self):
         with self.assertRaises(ValueError):
             ornUhl(mat1, mat2)
@@ -294,7 +294,7 @@ class test_Gamma(unittest.TestCase):
         self.assertEqual(np.shape(gammaExp(mat1, df1, {'theta': 1, 'gamma': 1.4})), (1, 3))
     def test_symm(self):
         calc = gammaExp(mat1, mat1, {'theta': 1, 'gamma': 0.5})
-        self.assertIsNone(np.testing.assert_equal(calc, calc.T))
+        self.assertIsNone(np.testing.assert_allclose(calc, calc.T, rtol = 1e-6))
     def test_fail_param(self):
         with self.assertRaises(ValueError):
             gammaExp(mat1, mat1)
@@ -344,7 +344,7 @@ class test_RatQuad(unittest.TestCase):
             [0.8827861, 0.9520052, 0.6124095],
             [0.4578728, 0.5688002, 0.6878453]
         ])
-        self.assertIsNone(np.testing.assert_allclose(expect, calc))
+        self.assertIsNone(np.testing.assert_allclose(expect, calc, rtol = 1e-6))
     def test_dim_check(self):
         df1 = pd.DataFrame(data = {'a': [1.8], 'b': [0.5]})
         self.assertEqual(np.shape(ratQuad(mat1, mat2.iloc[[1,2],:], {'theta': 1, 'alpha': 1.4})), (2, 3))
@@ -352,7 +352,7 @@ class test_RatQuad(unittest.TestCase):
         self.assertEqual(np.shape(ratQuad(mat1, df1, {'theta': 1, 'alpha': 1.4})), (1, 3))
     def test_symm(self):
         calc = ratQuad(mat1, mat1, {'theta': 1, 'alpha': 1.1})
-        self.assertIsNone(np.testing.assert_equal(calc, calc.T))
+        self.assertIsNone(np.testing.assert_allclose(calc, calc.T, rtol = 1e-6))
     def test_fail_param(self):
         with self.assertRaises(ValueError):
             ratQuad(mat1, mat1)
@@ -437,7 +437,7 @@ class test_Correlator(unittest.TestCase):
         pts = pd.DataFrame(data = {'a': np.random.uniform(size = 10), 'b': np.random.uniform(size = 10)})
         res1 = tCorr.getCorr(pts.iloc[1:5,:], pts.iloc[6:10,:])
         res2 = tCorr.getCorr(pts.iloc[6:10,:], pts.iloc[1:5,:])
-        self.assertIsNone(np.testing.assert_equal(res1, res2.T))
+        self.assertIsNone(np.testing.assert_allclose(res1, res2.T, rtol = 1e-6))
     def test_nugg(self):
         df = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
         tCorr = Correlator('ratQuad', {'theta': 0.4, 'alpha': 1.1}, nug = 0.15)

@@ -288,7 +288,7 @@ def generateNewDesign(ems, nPoints, z, method = "default", cutoff = 3,
                 points = maximinSample(points, nPoints - opts['seek'])
             return points
     else:
-        plausibleSet = plausibleSet.iloc[:,list(theseRanges.keys())]
+        plausibleSet = plausibleSet.loc[:,list(theseRanges.keys())]
         if isinstance(opts['accept_measure']) and opts['accept_measure'] == "default":
             pointImps = nthImplausible(ems, plausibleSet, z, maxImp = math.inf)
             sortedImps = np.sort(pointImps)
