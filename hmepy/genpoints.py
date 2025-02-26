@@ -289,7 +289,7 @@ def generateNewDesign(ems, nPoints, z, method = "default", cutoff = 3,
             return points
     else:
         plausibleSet = plausibleSet.loc[:,list(theseRanges.keys())]
-        if isinstance(opts['accept_measure']) and opts['accept_measure'] == "default":
+        if isinstance(opts['accept_measure'], str) and opts['accept_measure'] == "default":
             pointImps = nthImplausible(ems, plausibleSet, z, maxImp = math.inf)
             sortedImps = np.sort(pointImps)
             optimalCut = sortedImps[min([len(pointImps)-1, math.floor(0.8*len(pointImps)), 5*len(theseRanges)])]
