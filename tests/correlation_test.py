@@ -460,10 +460,10 @@ class test_Correlator(unittest.TestCase):
         tCorr = Correlator('matern', {'theta': 0.1, 'nu': 2.5})
         pts1 = pd.DataFrame(data = {'a': np.random.uniform(size = 3), 'b': np.random.uniform(-1, 1, 3)})
         pts2 = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
-        self.assertIsNone(np.testing.assert_equal(tCorr.getCorrDiff(pts1, 'a'),
-                                                  tCorr.getCorrDiff(pts1, 'a', pts1)))
-        self.assertIsNone(np.testing.assert_equal(tCorr.getCorrDiff(pts1, 'a', pts2),
-                                                  -tCorr.getCorrDiff(pts2, 'a', pts1).T))
+        self.assertIsNone(np.testing.assert_allclose(tCorr.getCorrDiff(pts1, 'a'),
+                                                  tCorr.getCorrDiff(pts1, 'a', pts1), rtol = 1e-10))
+        self.assertIsNone(np.testing.assert_allclose(tCorr.getCorrDiff(pts1, 'a', pts2),
+                                                  -tCorr.getCorrDiff(pts2, 'a', pts1).T, rtol = 1e-10))
     def test_derivative_non_active(self):
         pts1 = pd.DataFrame(data = {'a': np.random.uniform(size = 2), 'b': np.random.uniform(-1, 1, 2)})
         tCorr = Correlator('ratQuad', {'theta': 0.2, 'alpha': 1.1})

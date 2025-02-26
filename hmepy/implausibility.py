@@ -17,9 +17,9 @@ def sequentialImp(ems, x, z, n = 1, cutoff = 3):
         howManyFails = 0
         for em in ems:
             thisTarg = z[em.outputName]
-            thisPoint = pd.DataFrame(x, index = [i], columns = x.columns)
-            thisImp = sum(em.implausibility(thisPoint, thisTarg, cutoff))
-            if thisImp == False:
+            thisPoint = pd.DataFrame(x.iloc[[i],:], columns = x.columns)
+            thisImp = em.implausibility(thisPoint, thisTarg, cutoff)
+            if not thisImp.item():
                 howManyFails = howManyFails + 1
                 if howManyFails >= n:
                     outres[i] = False
