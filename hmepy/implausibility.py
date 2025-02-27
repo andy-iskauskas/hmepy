@@ -12,21 +12,17 @@ __all__ = ['nthImplausible']
 '''
 
 def sequentialImp(ems, x, z, n = 1, cutoff = 3):
-    outres = np.full(x.shape[0], True)
-    for i in range(x.shape[0]):
-        howManyFails = 0
-        for em in ems:
-            thisTarg = z[em.outputName]
-            thisPoint = pd.DataFrame(x.iloc[[i],:], columns = x.columns)
-            thisImp = em.implausibility(thisPoint, thisTarg, cutoff)
-            if not thisImp.item():
-                howManyFails = howManyFails + 1
-                if howManyFails >= n:
-                    outres[i] = False
-                    break
-        if outres[i] == False:
-            continue
-    return outres
+    outfails = np.full(x.shape[0], 0)
+    for em in ems:
+        reduced = x.loc[[i < n for i in outfails]]
+        if np.shape(reduced)[0] == 0:
+            return np.full(x.shape[0], False)
+        thisTarg = z[em.outputName]
+        thisImp = em.implausibility(reduced, thisTarg, cutoff)
+        modOutFails = outfails[[i<n for i in outfails]]
+        modOutFails[[not j for j in thisImp]] = modOutFails[[not j for j in thisImp]] + 1
+        outfails[[i<n for i in outfails]] = modOutFails
+    return np.array([i < n for i in outfails])
 
 def nthImplausible(ems, x, z, n = None, maxImp = math.inf,
                    cutoff = None, sequential = False, getRaw = False):
@@ -93,7 +89,7 @@ def nthImplausible(ems, x, z, n = None, maxImp = math.inf,
         warnings.warn("n cannot be greater than the number of targets. Switching to minimum implausibility.")
         n = len(emNames)
     if not(cutoff is None) and isinstance(cutoff, (float, int)):
-        cutoff = np.full(len(ems), 3, dtype = 'float')
+        cutoff = np.full(len(ems), cutoff, dtype = 'float')
     else: 
         cutoff = np.full(len(ems), None)
     if (len(ems) > 10 or sequential) and not(cutoff[0] is None):
