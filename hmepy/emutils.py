@@ -236,7 +236,7 @@ def importEmulatorFromJSON(filename = None, details = None):
         return emList
     return em
 
-def spaceReduction(ems, points, targets, prevPoints = None):
+def spaceReduction(ems, prevPoints, targets, newPoints = None):
     def wilsonInt(ns, n, z = 1.96):
         pup = (ns + z**2/2)/(n+z**2) + z/(n+z**2) * np.sqrt((ns*(n-ns))/n + z**2/4)
         pdown = (ns + z**2/2)/(n+z**2) - z/(n+z**2) * np.sqrt((ns*(n-ns))/n + z**2/4)
@@ -244,13 +244,13 @@ def spaceReduction(ems, points, targets, prevPoints = None):
     if not prevPoints is None:
         inputNames = list(ems[0].ranges.keys())
         prevInputs = prevPoints.loc[:,inputNames]
-        newInputs = points.loc[:,inputNames]
+        newInputs = newPoints.loc[:,inputNames]
         prevVol = np.prod(prevInputs.max() - prevInputs.min())
         newVol = np.prod(newInputs.max() - newInputs.min())
-        volRatio = newVol/prevVol
+        volRatio = max(newVol/prevVol,1)
     else:
         volRatio = None
-    acceptedPoints = nthImplausible(ems, points, targets, cutoff = 3)
+    acceptedPoints = nthImplausible(ems, prevPoints, targets, cutoff = 3)
     upperPercent, lowerPercent = wilsonInt(sum(acceptedPoints), np.shape(points)[0])
     if not volRatio is None:
         upperPercent = max(upperPercent, volRatio)
