@@ -251,7 +251,7 @@ def spaceReduction(ems, prevPoints, targets, newPoints = None):
     else:
         volRatio = None
     acceptedPoints = nthImplausible(ems, prevPoints, targets, cutoff = 3)
-    upperPercent, lowerPercent = wilsonInt(sum(acceptedPoints), np.shape(points)[0])
+    upperPercent, lowerPercent = wilsonInt(sum(acceptedPoints), np.shape(prevPoints)[0])
     if not volRatio is None:
         upperPercent = max(upperPercent, volRatio)
     return lowerPercent, upperPercent
