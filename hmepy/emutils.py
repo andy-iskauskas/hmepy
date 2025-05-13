@@ -237,6 +237,36 @@ def importEmulatorFromJSON(filename = None, details = None):
     return em
 
 def spaceReduction(ems, prevPoints, targets, newPoints = None):
+    '''
+    Estimate Space Reduction
+
+    Provide an interval for the estimated remaining space after a wave of emulation.
+
+    The space removed at each wave can be used as an indication of how informative
+    the data is, or to identify when performing further waves of history matching
+    may be unnecessary.
+
+    The implausibility of the trained emulators is evaluated on the proposed points
+    from the previous wave, and a Wilson interval is generated based on the acceptance
+    rate found. If this wave of emulators has also been used to propose new points, then
+    the acceptance rate is combined with the ratio of space occupied by the old and new
+    proposals (providing an upper bound on the volume of remaining space). 
+
+    Parameters:
+    -----------
+    ems: [Emulator] | [[Emulator]]
+        The emulators in question
+    prevPoints: DataFrame
+        The previous wave of proposed points
+    targets: [{'val': float, 'sigma': float}] | [[float, float]]
+        The observational targets to match to
+    newPoints: DataFrame | None
+        New points (if they have already been proposed)
+    
+    Returns:
+    --------
+    A pair of floats, representing lower and upper bounds for the space remaining.
+    '''
     def wilsonInt(ns, n, z = 1.96):
         pup = (ns + z**2/2)/(n+z**2) + z/(n+z**2) * np.sqrt((ns*(n-ns))/n + z**2/4)
         pdown = (ns + z**2/2)/(n+z**2) - z/(n+z**2) * np.sqrt((ns*(n-ns))/n + z**2/4)
